@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IncidentRecorder</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">IncidentRecorder</p>
+      <h1>Call-to-ticket helper</h1>
+      <p class="subtitle">Turn rough call notes into a clean incident ticket draft.</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <div class="section-heading">
+        <h2>Call details</h2>
+        <span id="saveStatus" class="status-pill">Not saved</span>
+      </div>
+
+      <form id="incidentForm" autocomplete="off">
+        <div class="form-grid">
+          <label>
+            Caller name
+            <input id="callerName" name="callerName" type="text" placeholder="Example: John Smith" />
+          </label>
+
+          <label>
+            Callback number
+            <input id="callbackNumber" name="callbackNumber" type="tel" placeholder="Example: 555-123-4567" />
+          </label>
+
+          <label>
+            Department / location
+            <input id="department" name="department" type="text" placeholder="Example: Accounting / Chicago" />
+          </label>
+
+          <label>
+            Device / asset
+            <input id="device" name="device" type="text" placeholder="Example: LAPTOP-12345" />
+          </label>
+
+          <label>
+            Application / service
+            <input id="service" name="service" type="text" placeholder="Example: Outlook, VPN, Teams" />
+          </label>
+
+          <label>
+            Priority
+            <select id="priority" name="priority">
+              <option value="">Select priority</option>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+              <option>Critical</option>
+            </select>
+          </label>
+
+          <label>
+            Category
+            <select id="category" name="category">
+              <option value="">Select category</option>
+              <option>Access / Password</option>
+              <option>Email</option>
+              <option>Network / VPN</option>
+              <option>Hardware</option>
+              <option>Software</option>
+              <option>Printer</option>
+              <option>Other</option>
+            </select>
+          </label>
+
+          <label>
+            Status
+            <select id="status" name="status">
+              <option>Open</option>
+              <option>Resolved</option>
+              <option>Pending user</option>
+              <option>Escalated</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="full-width">
+          Live call notes
+          <textarea id="rawNotes" name="rawNotes" placeholder="Type quick notes during the call. Example: User says Outlook keeps asking for password. Checked account status - active. Cleared Credential Manager. Reopened Outlook and mail is syncing."></textarea>
+        </label>
+      </form>
+
+      <div class="button-row">
+        <button id="generateBtn" class="primary" type="button">Generate ticket</button>
+        <button id="saveBtn" type="button">Save draft</button>
+        <button id="clearBtn" type="button">New call</button>
+      </div>
+    </section>
+
+    <section class="panel output-panel">
+      <div class="section-heading">
+        <h2>Generated ticket</h2>
+        <span class="status-pill">Editable</span>
+      </div>
+
+      <textarea id="ticketOutput" class="ticket-output" placeholder="Your generated ticket will appear here. You can edit it before copying."></textarea>
+
+      <div class="button-row">
+        <button id="copyBtn" class="primary" type="button">Copy ticket</button>
+        <button id="downloadBtn" type="button">Download .txt</button>
+      </div>
+
+      <div class="tips">
+        <h3>Note-taking tips</h3>
+        <p>Use short action lines while you are on the call:</p>
+        <ul>
+          <li>User reports VPN will not connect.</li>
+          <li>Verified internet access works.</li>
+          <li>Reset VPN client and had user retry.</li>
+          <li>User confirmed VPN connected successfully.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel drafts-panel">
+      <div class="section-heading">
+        <h2>Saved drafts</h2>
+        <button id="deleteAllDraftsBtn" class="link-button" type="button">Delete all</button>
+      </div>
+      <div id="draftList" class="draft-list empty">No saved drafts yet.</div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
