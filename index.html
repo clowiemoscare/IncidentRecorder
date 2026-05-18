@@ -450,7 +450,7 @@ button.primary:hover {
     <div>
       <p class="eyebrow">IncidentRecorder</p>
       <h1>Call-to-ticket helper</h1>
-      <p class="subtitle">Version 1 style layout with full incident fields, detailed description extraction, and complete work notes generation.</p>
+      <p class="subtitle">Clean call-note workspace with detailed description extraction and complete work notes generation.</p>
     </div>
   </header>
 
@@ -481,59 +481,7 @@ button.primary:hover {
             <button id="saveBtn" type="button">Save draft</button>
             <button id="submitBtn" type="button">Submit draft</button>
             <button id="resolveBtn" type="button">Resolve incident</button>
-            <button id="clearBtn" type="button">New call</button>
-          </div>
-        </div>
-
-        <div class="field-group">
-          <h3>Caller and record</h3>
-          <div class="form-grid">
-            <label>
-              Number
-              <input id="incidentNumber" name="incidentNumber" type="text" placeholder="New record" disabled />
-            </label>
-
-            <label>
-              <span class="required">*</span> Opened for
-              <input id="openedFor" name="openedFor" type="text" placeholder="Example: John Smith" />
-            </label>
-
-            <label>
-              Caller name
-              <input id="callerName" name="callerName" type="text" placeholder="Optional if different" />
-            </label>
-
-            <label>
-              Contact phone number
-              <input id="contactPhone" name="contactPhone" type="tel" placeholder="Example: 555-123-4567" />
-            </label>
-
-            <label>
-              Location
-              <input id="location" name="location" type="text" placeholder="Example: Chicago site" />
-            </label>
-
-            <label>
-              Department / location note
-              <input id="department" name="department" type="text" placeholder="Example: Accounting / Chicago" />
-            </label>
-
-            <label>
-              <span class="required">*</span> Channel
-              <select id="channel" name="channel">
-                <option>Phone</option>
-                <option>Email</option>
-                <option>Slack</option>
-                <option>Chat</option>
-                <option>Self-Service</option>
-                <option>Monitoring</option>
-              </select>
-            </label>
-
-            <label>
-              Watch list
-              <input id="watchList" name="watchList" type="text" placeholder="Optional watchers" />
-            </label>
+            <button id="clearBtn" type="button">Reset all fields</button>
           </div>
         </div>
 
@@ -830,14 +778,6 @@ const CATEGORY_MAP = {
 };
 
 const FORM_FIELD_IDS = [
-  "incidentNumber",
-  "openedFor",
-  "callerName",
-  "contactPhone",
-  "location",
-  "department",
-  "channel",
-  "watchList",
   "category",
   "subcategory",
   "service",
@@ -864,8 +804,6 @@ const FORM_FIELD_IDS = [
 ];
 
 const REQUIRED_FIELD_IDS = [
-  "openedFor",
-  "channel",
   "category",
   "subcategory",
   "businessImpact",
@@ -1628,21 +1566,25 @@ Reason for Escalation: ${sections.escalationReason || "[Only if escalated to T2]
 }
 
 function buildGeneratedTicket(data, sections) {
-  const createdAt = new Date().toLocaleString();
-  const nextSteps = data.state === "Resolved"
-    ? "No further action required at this time. Confirm close notes and resolve in the ticketing system."
-    : "Follow up as needed or escalate if the issue remains unresolved.";
+  return `Short Description:
+${displayValue(data.shortDescription)}
 
-  return `Incident Ticket Draft
-Created: ${createdAt}
+Detailed Description:
+${displayValue(data.detailedDescription)}
 
-Record Fields:
-Number: ${displayValue(data.incidentNumber, "New record")}
-Opened for: ${displayValue(data.openedFor)}
-Caller Name: ${displayValue(data.callerName || data.openedFor)}
-Contact Phone Number: ${displayValue(data.contactPhone)}
-Location: ${displayValue(data.location || data.department)}
-Channel: ${displayValue(data.channel)}
+Issue:
+${displayValue(sections.issue)}
+
+Troubleshooting Steps:
+${bulletList(sections.troubleshooting)}
+
+Resolution:
+${displayValue(sections.resolution)}
+
+Reason for Escalation:
+${sections.escalationReason || "Not escalated / Not provided."}
+
+Ticket Fields:
 Category: ${displayValue(data.category)}
 Subcategory: ${displayValue(data.subcategory)}
 Service: ${displayValue(data.service)}
@@ -1658,47 +1600,15 @@ Urgency: ${displayValue(data.urgency)}
 Priority: ${displayValue(data.priority)}
 Assignment Group: ${displayValue(data.assignmentGroup)}
 Assigned To: ${displayValue(data.assignedTo)}
-Watch List: ${displayValue(data.watchList)}
 Related Search: ${displayValue(data.relatedSearch)}
 Knowledge Scope: ${displayValue(data.knowledgeScope)}
-
-Short Description:
-${displayValue(data.shortDescription)}
-
-Issue:
-${displayValue(sections.issue)}
-
-Impact:
-${displayValue(sections.impact)}
-
-Troubleshooting Performed:
-${bulletList(sections.troubleshooting)}
-
-Findings:
-${bulletList(sections.findings)}
-
-Resolution:
-${displayValue(sections.resolution)}
-
-Reason for Escalation:
-${sections.escalationReason || "Not escalated / Not provided."}
-
-Next Steps:
-${nextSteps}
-
-Detailed Description:
-${displayValue(data.detailedDescription)}
+Resolution Code: ${displayValue(data.resolutionCode)}
+Close Notes: ${displayValue(data.closeNotes)}
 
 Work Notes:
 ${displayValue(data.workNotes)}
 
-Resolution Code:
-${displayValue(data.resolutionCode)}
-
-Close Notes:
-${displayValue(data.closeNotes)}
-
-Raw Call Notes:
+Raw Draft Notes:
 ${displayValue(data.rawNotes)}`;
 }
 
@@ -1751,8 +1661,6 @@ function validateRequiredFields() {
 
 function fieldLabel(id) {
   const labels = {
-    openedFor: "Opened for",
-    channel: "Channel",
     category: "Category",
     subcategory: "Subcategory",
     businessImpact: "Business Impact",
@@ -1828,12 +1736,12 @@ function downloadTicket() {
   const blob = new Blob([ticket], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  const caller = getValue("openedFor") || getValue("callerName") || "incident";
-  const safeCaller = caller.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+  const title = getValue("shortDescription") || getValue("subcategory") || getValue("category") || "incident";
+  const safeTitle = title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
 
   link.href = url;
-  link.download = `${safeCaller || "incident"}-ticket-${stamp}.txt`;
+  link.download = `${safeTitle || "incident"}-ticket-${stamp}.txt`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -1878,7 +1786,7 @@ function renderDrafts() {
   elements.draftList.innerHTML = drafts
     .map((draft) => {
       const data = draft.data || {};
-      const title = data.shortDescription || data.openedFor || data.callerName || data.service || "Untitled incident";
+      const title = data.shortDescription || data.subcategory || data.category || data.service || "Untitled incident";
       const created = new Date(draft.createdAt).toLocaleString();
       const issuePreview = (data.rawNotes || data.workNotes || "No notes saved.").slice(0, 110);
 
@@ -1934,7 +1842,7 @@ function deleteAllDrafts() {
 }
 
 function clearForm() {
-  const confirmed = confirm("Clear this incident and start a new call?");
+  const confirmed = confirm("Reset all fields, generated ticket, and draft call notes?");
   if (!confirmed) return;
 
   FORM_FIELD_IDS.forEach((field) => {
@@ -1947,7 +1855,7 @@ function clearForm() {
   elements.ticketOutput.value = "";
   applyDefaults();
   setSaveStatus("Not saved");
-  showToast("New call started.");
+  showToast("All fields reset.");
 }
 
 function escapeHtml(value) {
@@ -1961,7 +1869,6 @@ function escapeHtml(value) {
 
 function applyDefaults() {
   populateCategories("Keepstock - Seaga - PC/Data");
-  $("channel").value = "Phone";
   $("state").value = "New";
   $("businessImpact").value = "Minor";
   $("userImpact").value = "Single User: 1 user";
