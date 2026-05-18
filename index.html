@@ -15,10 +15,8 @@
   --primary-hover: #1d46a0;
   --soft-primary: #eaf1ff;
   --danger: #b42318;
+  --warning-bg: #fff9c4;
   --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
-  --field-bg: #ffffff;
-  --tip-bg: #f8fafc;
-  --work-note-bg: #fff9c4;
 }
 
 * {
@@ -33,8 +31,8 @@ body {
 }
 
 .app-header {
-  padding: 24px 24px 18px;
-  max-width: 1220px;
+  padding: 34px 24px 18px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 
@@ -54,7 +52,7 @@ p {
 }
 
 h1 {
-  font-size: clamp(2.3rem, 5vw, 3.5rem);
+  font-size: clamp(2rem, 5vw, 3.4rem);
   line-height: 1;
   margin-bottom: 10px;
 }
@@ -67,9 +65,9 @@ h1 {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+  grid-template-columns: minmax(0, 1.12fr) minmax(380px, 0.88fr);
   gap: 22px;
-  max-width: 1220px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 0 24px 36px;
 }
@@ -100,16 +98,23 @@ h1 {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 16px;
 }
 
 .section-heading h2 {
-  margin: 0;
   font-size: 1.25rem;
+  margin-bottom: 5px;
 }
 
-.status-pill {
+.section-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 0;
+}
+
+.status-pill,
+.mini-pill {
   background: var(--soft-primary);
   color: var(--primary);
   border-radius: 999px;
@@ -119,20 +124,49 @@ h1 {
   white-space: nowrap;
 }
 
+.field-group {
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+  margin-top: 18px;
+}
+
+.field-group:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.primary-notes {
+  background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.group-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field-group h3 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
-.detail-grid {
-  margin-top: 14px;
-}
-
 label {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   color: #374151;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
@@ -144,216 +178,190 @@ label {
 input,
 select,
 textarea {
-  width: 100%;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   color: var(--text);
   font: inherit;
-  margin-top: 7px;
-  padding: 11px 12px;
-  outline: none;
-  background: var(--field-bg);
-  transition: border 0.15s ease, box-shadow 0.15s ease;
-}
-
-input:disabled {
-  background: #eef2f7;
-  color: #4b5563;
+  font-weight: 400;
+  padding: 10px 12px;
+  width: 100%;
+  background: #fff;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(36, 87, 197, 0.12);
+  box-shadow: 0 0 0 3px rgba(36, 87, 197, 0.12);
+  outline: none;
+}
+
+input:disabled {
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 .full-width {
-  display: block;
-  margin-top: 16px;
+  grid-column: 1 / -1;
+  margin-bottom: 14px;
 }
 
-#rawNotes {
-  min-height: 230px;
+.full-width-grid {
+  grid-column: 1 / -1;
+}
+
+textarea {
+  min-height: 130px;
   resize: vertical;
 }
 
-.ticket-output {
-  min-height: 480px;
-  resize: vertical;
-  line-height: 1.45;
-  white-space: pre-wrap;
+.raw-notes {
+  min-height: 185px;
 }
 
 .details-textarea {
-  min-height: 235px;
-  line-height: 1.35;
-  resize: vertical;
+  min-height: 250px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 0.86rem;
 }
 
 .work-notes {
-  min-height: 210px;
-  line-height: 1.45;
-  resize: vertical;
-  background: var(--work-note-bg);
+  min-height: 220px;
+  background: var(--warning-bg);
 }
 
 .small-textarea {
-  min-height: 82px;
-  resize: vertical;
+  min-height: 90px;
 }
 
-.button-row {
+.ticket-output {
+  min-height: 640px;
+  width: 100%;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.button-row,
+.field-tools {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 16px;
+  align-items: center;
+}
+
+.button-row {
+  margin-top: 12px;
+}
+
+.output-actions {
+  margin-bottom: 18px;
+}
+
+.field-tools {
+  justify-content: space-between;
+  margin: -4px 0 16px;
 }
 
 button {
   border: 1px solid var(--border);
+  border-radius: 10px;
   background: #ffffff;
-  border-radius: 12px;
   color: var(--text);
   cursor: pointer;
+  font: inherit;
   font-weight: 700;
-  padding: 11px 15px;
-  transition: background 0.15s ease, border 0.15s ease, transform 0.15s ease;
+  padding: 10px 14px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 button:hover {
-  border-color: #b7c4d5;
+  background: #f8fafc;
+  border-color: #b8c7d8;
   transform: translateY(-1px);
 }
 
 button.primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #ffffff;
+  color: #fff;
 }
 
 button.primary:hover {
   background: var(--primary-hover);
 }
 
-button.ghost {
-  background: #f8fafc;
-  color: #334155;
-}
-
 .link-button {
-  border: none;
-  background: transparent;
-  color: var(--danger);
-  padding: 0;
-}
-
-.details-panel {
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  margin-top: 18px;
-  padding: 0;
-  overflow: hidden;
-  background: #fbfdff;
-}
-
-.details-panel summary {
-  cursor: pointer;
-  font-weight: 700;
-  list-style: none;
-  padding: 14px 16px;
-  position: relative;
-}
-
-.details-panel summary::-webkit-details-marker {
-  display: none;
-}
-
-.details-panel summary::after {
-  content: "+";
   color: var(--primary);
-  font-weight: 900;
-  position: absolute;
-  right: 16px;
+  background: transparent;
+  border: 0;
+  padding: 0;
 }
 
-.details-panel[open] summary {
-  border-bottom: 1px solid var(--border);
-}
-
-.details-panel[open] summary::after {
-  content: "-";
-}
-
-.details-panel > .form-grid,
-.details-panel > .full-width,
-.details-panel > .field-tools {
-  padding-left: 16px;
-  padding-right: 16px;
-}
-
-.details-panel > .form-grid:last-child {
-  padding-bottom: 16px;
-}
-
-.field-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 0 16px;
-}
-
-.field-tools button {
-  padding: 8px 11px;
+.danger-text {
+  color: var(--danger);
 }
 
 .counter {
   color: var(--muted);
   font-size: 0.82rem;
-  margin-right: auto;
+}
+
+.optional-group {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0;
+}
+
+.optional-group summary {
+  cursor: pointer;
+  font-weight: 800;
+  padding: 16px;
+}
+
+.optional-grid {
+  padding: 0 16px 16px;
 }
 
 .tips {
-  background: var(--tip-bg);
+  background: #f8fafc;
   border: 1px solid var(--border);
   border-radius: 16px;
-  color: var(--muted);
-  margin-top: 18px;
   padding: 16px;
 }
 
 .tips h3 {
-  color: var(--text);
   font-size: 1rem;
   margin-bottom: 8px;
 }
 
-.tips p {
-  margin-bottom: 10px;
+.tips p,
+.tips li {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .tips ul {
-  margin-bottom: 0;
-  padding-left: 20px;
+  margin: 10px 0 0 18px;
+  padding: 0;
 }
 
 .draft-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .draft-list.empty {
   color: var(--muted);
+  display: block;
 }
 
 .draft-card {
-  align-items: center;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  grid-template-columns: 1fr auto;
   padding: 14px;
 }
 
@@ -364,47 +372,37 @@ button.ghost {
 
 .draft-meta {
   color: var(--muted);
-  font-size: 0.88rem;
-  margin: 0;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
 }
 
 .draft-actions {
+  align-items: center;
   display: flex;
   gap: 8px;
 }
 
-.draft-actions button {
-  padding: 8px 10px;
-}
-
-.danger-text {
-  color: var(--danger);
-}
-
 .toast {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 20;
   background: #111827;
-  color: #ffffff;
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  font-weight: 700;
-  max-width: 360px;
+  border-radius: 999px;
+  color: #fff;
+  left: 50%;
   opacity: 0;
-  padding: 12px 14px;
+  padding: 10px 16px;
   pointer-events: none;
-  transform: translateY(-8px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  position: fixed;
+  top: 18px;
+  transform: translate(-50%, -12px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 20;
 }
 
 .toast.visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate(-50%, 0);
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1020px) {
   .layout {
     grid-template-columns: 1fr;
   }
@@ -414,27 +412,34 @@ button.ghost {
   }
 
   .ticket-output {
-    min-height: 360px;
+    min-height: 420px;
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 680px) {
   .app-header,
   .layout {
     padding-left: 14px;
     padding-right: 14px;
   }
 
-  .panel {
-    padding: 16px;
-  }
-
   .form-grid {
     grid-template-columns: 1fr;
   }
 
+  .panel {
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .section-heading,
   .draft-card {
     grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .draft-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -445,7 +450,7 @@ button.ghost {
     <div>
       <p class="eyebrow">IncidentRecorder</p>
       <h1>Call-to-ticket helper</h1>
-      <p class="subtitle">Turn rough call notes into a clean incident ticket draft.</p>
+      <p class="subtitle">Version 1 style layout with the full incident fields, detailed description template, and work notes generator.</p>
     </div>
   </header>
 
@@ -454,93 +459,43 @@ button.ghost {
   <main class="layout">
     <section class="panel form-panel">
       <div class="section-heading">
-        <h2>Call details</h2>
+        <div>
+          <h2>Call workspace</h2>
+          <p class="section-note">Start with rough call notes, then generate the ticket fields and work notes.</p>
+        </div>
         <span id="saveStatus" class="status-pill">Not saved</span>
       </div>
 
       <form id="incidentForm" autocomplete="off">
-        <div class="form-grid">
-          <label>
-            <span class="required">*</span> Caller / opened for
-            <input id="openedFor" name="openedFor" type="text" placeholder="Example: John Smith" />
+        <div class="field-group primary-notes">
+          <div class="group-title-row">
+            <h3>Draft call notes</h3>
+            <span class="mini-pill">Write fast here</span>
+          </div>
+          <label class="full-width">
+            Rough notes from the call
+            <textarea id="rawNotes" name="rawNotes" class="raw-notes" placeholder="Example: User reports Seaga PC/Data issue. Started around 9 AM. Verified machine is online. Checked badge reader and COM port. Restarted app. User confirmed machine is dispensing again."></textarea>
           </label>
-
-          <label>
-            Callback number
-            <input id="contactPhone" name="contactPhone" type="tel" placeholder="Example: 555-123-4567" />
-          </label>
-
-          <label>
-            Department / location
-            <input id="department" name="department" type="text" placeholder="Example: Accounting / Chicago" />
-          </label>
-
-          <label>
-            Device / asset
-            <input id="deviceAsset" name="deviceAsset" type="text" placeholder="Example: LAPTOP-12345 or Machine ID" />
-          </label>
-
-          <label>
-            Application / service
-            <input id="applicationService" name="applicationService" type="text" placeholder="Example: KeepStock, Outlook, VPN" />
-          </label>
-
-          <label>
-            Priority
-            <input id="priority" name="priority" type="text" disabled />
-          </label>
-
-          <label>
-            <span class="required">*</span> Category
-            <select id="category" name="category"></select>
-          </label>
-
-          <label>
-            <span class="required">*</span> Subcategory
-            <select id="subcategory" name="subcategory"></select>
-          </label>
-
-          <label>
-            Status
-            <select id="state" name="state">
-              <option>New</option>
-              <option>In Progress</option>
-              <option>On Hold</option>
-              <option>Resolved</option>
-              <option>Closed</option>
-            </select>
-          </label>
-
-          <label>
-            <span class="required">*</span> Urgency
-            <select id="urgency" name="urgency">
-              <option>Low</option>
-              <option>Medium</option>
-              <option>High</option>
-              <option>Critical</option>
-            </select>
-          </label>
+          <div class="button-row">
+            <button id="generateBtn" class="primary" type="button">Generate ticket from draft notes</button>
+            <button id="saveBtn" type="button">Save draft</button>
+            <button id="submitBtn" type="button">Submit draft</button>
+            <button id="resolveBtn" type="button">Resolve incident</button>
+            <button id="clearBtn" type="button">New call</button>
+          </div>
         </div>
 
-        <label class="full-width">
-          Live call notes
-          <textarea id="rawNotes" name="rawNotes" placeholder="Type quick notes during the call. Example: User reports Seaga PC/Data issue. Verified machine online. Checked badge reader and COM port. Restarted app. User confirmed machine is dispensing again."></textarea>
-        </label>
-
-        <div class="button-row main-actions">
-          <button id="generateBtn" class="primary" type="button">Generate ticket</button>
-          <button id="saveBtn" type="button">Save draft</button>
-          <button id="clearBtn" type="button">New call</button>
-          <button id="submitBtn" class="ghost" type="button">Submit draft</button>
-          <button id="resolveBtn" class="ghost" type="button">Resolve incident</button>
-        </div>
-
-        <details class="details-panel">
-          <summary>More incident fields</summary>
-          <div class="form-grid detail-grid">
+        <div class="field-group">
+          <h3>Caller and record</h3>
+          <div class="form-grid">
             <label>
               Number
               <input id="incidentNumber" name="incidentNumber" type="text" placeholder="New record" disabled />
+            </label>
+
+            <label>
+              <span class="required">*</span> Opened for
+              <input id="openedFor" name="openedFor" type="text" placeholder="Example: John Smith" />
             </label>
 
             <label>
@@ -549,8 +504,18 @@ button.ghost {
             </label>
 
             <label>
+              Contact phone number
+              <input id="contactPhone" name="contactPhone" type="tel" placeholder="Example: 555-123-4567" />
+            </label>
+
+            <label>
               Location
               <input id="location" name="location" type="text" placeholder="Example: Chicago site" />
+            </label>
+
+            <label>
+              Department / location note
+              <input id="department" name="department" type="text" placeholder="Example: Accounting / Chicago" />
             </label>
 
             <label>
@@ -563,6 +528,26 @@ button.ghost {
                 <option>Self-Service</option>
                 <option>Monitoring</option>
               </select>
+            </label>
+
+            <label>
+              Watch list
+              <input id="watchList" name="watchList" type="text" placeholder="Optional watchers" />
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <h3>Category and service</h3>
+          <div class="form-grid">
+            <label>
+              <span class="required">*</span> Category
+              <select id="category" name="category"></select>
+            </label>
+
+            <label>
+              <span class="required">*</span> Subcategory
+              <select id="subcategory" name="subcategory"></select>
             </label>
 
             <label>
@@ -583,6 +568,32 @@ button.ghost {
             <label>
               Configuration item
               <input id="configurationItem" name="configurationItem" type="text" placeholder="CI, machine, or asset" />
+            </label>
+
+            <label>
+              Device / asset
+              <input id="deviceAsset" name="deviceAsset" type="text" placeholder="Device ID, machine, scanner, laptop, etc." />
+            </label>
+
+            <label>
+              Application / service note
+              <input id="applicationService" name="applicationService" type="text" placeholder="Optional extra application detail" />
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <h3>Impact and assignment</h3>
+          <div class="form-grid">
+            <label>
+              State
+              <select id="state" name="state">
+                <option>New</option>
+                <option>In Progress</option>
+                <option>On Hold</option>
+                <option>Resolved</option>
+                <option>Closed</option>
+              </select>
             </label>
 
             <label>
@@ -607,6 +618,21 @@ button.ghost {
             </label>
 
             <label>
+              <span class="required">*</span> Urgency
+              <select id="urgency" name="urgency">
+                <option>Low</option>
+                <option>Medium</option>
+                <option>High</option>
+                <option>Critical</option>
+              </select>
+            </label>
+
+            <label>
+              Priority
+              <input id="priority" name="priority" type="text" disabled />
+            </label>
+
+            <label>
               <span class="required">*</span> Assignment Group
               <input id="assignmentGroup" name="assignmentGroup" type="text" value="T1 KeepStock" />
             </label>
@@ -614,11 +640,6 @@ button.ghost {
             <label>
               <span class="required">*</span> Assigned To
               <input id="assignedTo" name="assignedTo" type="text" value="Clowie Moscare" />
-            </label>
-
-            <label>
-              Watch list
-              <input id="watchList" name="watchList" type="text" placeholder="Optional watchers" />
             </label>
 
             <label>
@@ -635,10 +656,10 @@ button.ghost {
               </select>
             </label>
           </div>
-        </details>
+        </div>
 
-        <details class="details-panel">
-          <summary>Detailed description, work notes, and resolution fields</summary>
+        <div class="field-group">
+          <h3>Ticket descriptions</h3>
 
           <label class="full-width">
             <span class="required">*</span> Short Description
@@ -664,8 +685,11 @@ button.ghost {
             <button id="resetWorkBtn" type="button">Reset work notes template</button>
             <button id="copyWorkBtn" type="button">Copy work notes</button>
           </div>
+        </div>
 
-          <div class="form-grid detail-grid">
+        <details class="field-group optional-group">
+          <summary>Resolution and close notes</summary>
+          <div class="form-grid optional-grid">
             <label>
               Resolution Code
               <select id="resolutionCode" name="resolutionCode">
@@ -678,7 +702,7 @@ button.ghost {
               </select>
             </label>
 
-            <label>
+            <label class="full-width-grid">
               Close Notes
               <textarea id="closeNotes" name="closeNotes" class="small-textarea" placeholder="Final customer-facing close notes..."></textarea>
             </label>
@@ -689,7 +713,10 @@ button.ghost {
 
     <section class="panel output-panel">
       <div class="section-heading">
-        <h2>Generated ticket</h2>
+        <div>
+          <h2>Generated ticket</h2>
+          <p class="section-note">Editable output created from your draft notes and fields.</p>
+        </div>
         <span class="status-pill">Editable</span>
       </div>
 
@@ -703,20 +730,23 @@ button.ghost {
       </div>
 
       <div class="tips">
-        <h3>Note-taking tips</h3>
-        <p>Use short action lines while you are on the call:</p>
+        <h3>Quick note pattern</h3>
+        <p>You can write short lines during the call. The app will organize them into Issue, Troubleshooting Steps, and Resolution.</p>
         <ul>
-          <li>User reports VPN will not connect.</li>
-          <li>Verified internet access works.</li>
-          <li>Reset VPN client and had user retry.</li>
-          <li>User confirmed VPN connected successfully.</li>
+          <li>User reports unable to login to GCOM Mobile App.</li>
+          <li>Verified account is active.</li>
+          <li>Cleared app cache and had user retry login.</li>
+          <li>User confirmed login worked.</li>
         </ul>
       </div>
     </section>
 
     <section class="panel drafts-panel">
       <div class="section-heading">
-        <h2>Saved drafts</h2>
+        <div>
+          <h2>Saved drafts</h2>
+          <p class="section-note">Saved only in this browser.</p>
+        </div>
         <button id="deleteAllDraftsBtn" class="link-button" type="button">Delete all</button>
       </div>
       <div id="draftList" class="draft-list empty">No saved drafts yet.</div>
@@ -724,7 +754,7 @@ button.ghost {
   </main>
 
   <script>
-const STORAGE_KEY = "incidentRecorderDraftsV4CleanUiFullFields";
+const STORAGE_KEY = "incidentRecorderDraftsV3V1UiFullFields";
 
 const AMS_TOOLBOX_SUBCATEGORIES = [
   "Hardware issue: - Drop sensor",
@@ -1253,14 +1283,34 @@ function buildGeneratedTicket(data, sections) {
   return `Incident Ticket Draft
 Created: ${createdAt}
 
+Record Fields:
+Number: ${displayValue(data.incidentNumber, "New record")}
+Opened for: ${displayValue(data.openedFor)}
+Caller Name: ${displayValue(data.callerName || data.openedFor)}
+Contact Phone Number: ${displayValue(data.contactPhone)}
+Location: ${displayValue(data.location || data.department)}
+Channel: ${displayValue(data.channel)}
+Category: ${displayValue(data.category)}
+Subcategory: ${displayValue(data.subcategory)}
+Service: ${displayValue(data.service)}
+Service Offering: ${displayValue(data.serviceOffering)}
+Parts Request Number(s): ${displayValue(data.partsRequest)}
+Configuration Item: ${displayValue(data.configurationItem)}
+Device / Asset: ${displayValue(data.deviceAsset)}
+Application / Service Note: ${displayValue(data.applicationService)}
+State: ${displayValue(data.state)}
+Business Impact: ${displayValue(data.businessImpact)}
+User Impact: ${displayValue(data.userImpact)}
+Urgency: ${displayValue(data.urgency)}
+Priority: ${displayValue(data.priority)}
+Assignment Group: ${displayValue(data.assignmentGroup)}
+Assigned To: ${displayValue(data.assignedTo)}
+Watch List: ${displayValue(data.watchList)}
+Related Search: ${displayValue(data.relatedSearch)}
+Knowledge Scope: ${displayValue(data.knowledgeScope)}
+
 Short Description:
 ${displayValue(data.shortDescription)}
-
-Detailed Description:
-${displayValue(data.detailedDescription)}
-
-Work Notes:
-${displayValue(data.workNotes)}
 
 Issue:
 ${displayValue(sections.issue)}
@@ -1268,7 +1318,7 @@ ${displayValue(sections.issue)}
 Impact:
 ${displayValue(sections.impact)}
 
-Troubleshooting Steps:
+Troubleshooting Performed:
 ${bulletList(sections.troubleshooting)}
 
 Findings:
@@ -1283,34 +1333,17 @@ ${sections.escalationReason || "Not escalated / Not provided."}
 Next Steps:
 ${nextSteps}
 
-Incident Fields:
-Number: ${displayValue(data.incidentNumber, "New record")}
-Opened For: ${displayValue(data.openedFor)}
-Caller Name: ${displayValue(data.callerName || data.openedFor)}
-Callback Number: ${displayValue(data.contactPhone)}
-Location: ${displayValue(data.location || data.department)}
-Department / Location: ${displayValue(data.department)}
-Channel: ${displayValue(data.channel)}
-Category: ${displayValue(data.category)}
-Subcategory: ${displayValue(data.subcategory)}
-Service: ${displayValue(data.service)}
-Service Offering: ${displayValue(data.serviceOffering)}
-Parts Request Number(s): ${displayValue(data.partsRequest)}
-Configuration Item: ${displayValue(data.configurationItem)}
-Device / Asset: ${displayValue(data.deviceAsset)}
-Application / Service: ${displayValue(data.applicationService)}
-State: ${displayValue(data.state)}
-Business Impact: ${displayValue(data.businessImpact)}
-User Impact: ${displayValue(data.userImpact)}
-Urgency: ${displayValue(data.urgency)}
-Priority: ${displayValue(data.priority)}
-Assignment Group: ${displayValue(data.assignmentGroup)}
-Assigned To: ${displayValue(data.assignedTo)}
-Watch List: ${displayValue(data.watchList)}
-Related Search: ${displayValue(data.relatedSearch)}
-Knowledge Scope: ${displayValue(data.knowledgeScope)}
-Resolution Code: ${displayValue(data.resolutionCode)}
-Close Notes: ${displayValue(data.closeNotes)}
+Detailed Description:
+${displayValue(data.detailedDescription)}
+
+Work Notes:
+${displayValue(data.workNotes)}
+
+Resolution Code:
+${displayValue(data.resolutionCode)}
+
+Close Notes:
+${displayValue(data.closeNotes)}
 
 Raw Call Notes:
 ${displayValue(data.rawNotes)}`;
