@@ -3,897 +3,758 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IncidentRecorder - New Incident</title>
+  <title>IncidentRecorder</title>
   <style>
 :root {
-  --page-bg: #f4f4f7;
-  --topbar-bg: #e3e4e8;
-  --panel-bg: #ffffff;
-  --tab-bg: #edf0f4;
-  --tab-border: #aeb7c4;
-  --field-border: #8e99aa;
-  --field-disabled: #d9dde4;
-  --button-blue: #342ee5;
-  --button-hover: #201ac7;
-  --text: #071126;
-  --muted: #526071;
-  --required: #d31212;
-  --work-note-bg: #fff9bd;
-  --help-blue: #2c36d8;
+  --bg: #f4f7fb;
+  --panel: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --border: #d9e2ec;
+  --primary: #2457c5;
+  --primary-hover: #1d46a0;
+  --soft-primary: #eaf1ff;
   --danger: #b42318;
+  --warning-bg: #fff9c4;
+  --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
 }
 
 * {
   box-sizing: border-box;
 }
 
-html,
-body {
-  min-height: 100%;
-}
-
 body {
   margin: 0;
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 14px;
+  background: var(--bg);
   color: var(--text);
-  background: var(--page-bg);
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 42px;
-  padding: 4px 10px 4px 0;
-  background: var(--topbar-bg);
-  border-bottom: 1px solid #c9cdd5;
-}
-
-.topbar-left,
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.icon-button {
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--button-blue);
-  border-radius: 4px;
-  color: var(--button-blue);
-  background: #ffffff;
-  font-size: 28px;
-  line-height: 1;
-}
-
-.hamburger {
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  width: 26px;
-  height: 30px;
-  border: 0;
-  background: transparent;
-}
-
-.hamburger span {
-  display: block;
-  width: 15px;
-  height: 2px;
-  background: #1b2740;
-}
-
-.record-title {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.02;
-  font-size: 13px;
-}
-
-.record-title strong {
-  font-size: 14px;
-}
-
-.icon-only {
-  border: 0;
-  background: transparent;
-  color: var(--button-blue);
-  font-size: 20px;
-  min-width: 28px;
-  height: 32px;
-}
-
-.action-button {
-  min-height: 32px;
-  padding: 5px 12px;
-  color: var(--button-blue);
-  background: #ffffff;
-  border: 1px solid var(--button-blue);
-  border-radius: 4px;
-}
-
-.action-button:hover,
-.icon-button:hover,
-.lookup-field button:hover,
-.field-tools button:hover,
-.quick-actions-card button:hover,
-.related-toggle button:hover,
-.watch-tools button:hover {
-  border-color: var(--button-hover);
-  color: var(--button-hover);
-}
-
-.action-button.wide {
-  min-width: 126px;
-}
-
-.page-shell {
-  position: relative;
-  max-width: 1248px;
+.app-header {
+  padding: 34px 24px 18px;
+  max-width: 1280px;
   margin: 0 auto;
-  background: var(--panel-bg);
-  border-left: 1px solid #e6e8ee;
-  border-right: 1px solid #e6e8ee;
-  min-height: calc(100vh - 42px);
 }
 
-.record-panel {
-  padding: 4px 16px 30px;
-  border-bottom: 1px solid #aeb7c4;
-  background: #ffffff;
+.eyebrow {
+  color: var(--primary);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
 }
 
-.form-grid-main {
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 1.05rem;
+  margin-bottom: 0;
+}
+
+.layout {
   display: grid;
-  grid-template-columns: minmax(460px, 1fr) minmax(470px, 1fr);
-  gap: 72px;
-  max-width: 1060px;
-  margin-left: 38px;
+  grid-template-columns: minmax(0, 1.12fr) minmax(380px, 0.88fr);
+  gap: 22px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px 36px;
 }
 
-.form-column {
-  display: grid;
-  gap: 6px;
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 22px;
 }
 
-.field-row {
-  display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+.output-panel,
+.drafts-panel {
+  align-self: start;
 }
 
-.field-row label {
-  text-align: right;
-  line-height: 1.1;
+.output-panel {
+  position: sticky;
+  top: 18px;
+}
+
+.drafts-panel {
+  grid-column: 1 / -1;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.section-heading h2 {
+  font-size: 1.25rem;
+  margin-bottom: 5px;
+}
+
+.section-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 0;
+}
+
+.status-pill,
+.mini-pill {
+  background: var(--soft-primary);
+  color: var(--primary);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 10px;
   white-space: nowrap;
 }
 
-.required {
-  color: var(--required);
-  font-weight: normal;
+.field-group {
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+  margin-top: 18px;
 }
 
-.help {
-  display: inline-flex;
+.field-group:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.primary-notes {
+  background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.group-title-row {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  margin-left: 3px;
-  border: 1px solid var(--help-blue);
-  border-radius: 50%;
-  color: var(--help-blue);
-  font-size: 11px;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field-group h3 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #374151;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
-.circle-check {
-  margin-right: 1px;
-  color: #06152d;
-  font-size: 13px;
+.required {
+  color: var(--danger);
+  font-weight: 900;
 }
 
 input,
 select,
 textarea {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+  padding: 10px 12px;
   width: 100%;
-  min-height: 32px;
-  color: #081322;
-  background: #ffffff;
-  border: 1px solid var(--field-border);
-  border-radius: 3px;
-  padding: 5px 9px;
-  outline: none;
-}
-
-textarea {
-  resize: vertical;
-  line-height: 1.5;
+  background: #fff;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--button-blue);
-  box-shadow: 0 0 0 2px rgba(52, 46, 229, 0.13);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(36, 87, 197, 0.12);
+  outline: none;
 }
 
 input:disabled {
-  color: #3f4d62;
-  background: var(--field-disabled);
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
-.lookup-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
+.full-width {
+  grid-column: 1 / -1;
+  margin-bottom: 14px;
 }
 
-.lookup-field input {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+.full-width-grid {
+  grid-column: 1 / -1;
 }
 
-.lookup-field button {
-  min-height: 32px;
-  color: var(--button-blue);
-  background: #ffffff;
-  border: 1px solid var(--field-border);
-  border-left: 0;
-  border-radius: 0 3px 3px 0;
-  font-size: 17px;
+textarea {
+  min-height: 130px;
+  resize: vertical;
 }
 
-.lookup-field.with-info {
-  grid-template-columns: minmax(0, 1fr) 32px 36px;
-  gap: 10px;
-}
-
-.lookup-field.with-info .info-button {
-  border: 1px solid var(--button-blue);
-  border-radius: 4px;
-  color: var(--button-blue);
-  font-weight: 700;
-  background: #ffffff;
-}
-
-.full-width-fields {
-  max-width: 1010px;
-  margin: 8px 0 0 38px;
-}
-
-.wide-field {
-  grid-template-columns: 190px minmax(0, 1fr);
-  margin-top: 6px;
-}
-
-.details-row {
-  align-items: start;
+.raw-notes {
+  min-height: 185px;
 }
 
 .details-textarea {
-  min-height: 118px;
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-.field-tools {
-  grid-column: 2;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-top: 3px;
-  color: #36465f;
-  font-size: 12px;
-}
-
-.field-tools button,
-.quick-actions-card button,
-.related-toggle button,
-.watch-tools button {
-  min-height: 28px;
-  padding: 4px 10px;
-  color: var(--button-blue);
-  background: #ffffff;
-  border: 1px solid var(--button-blue);
-  border-radius: 4px;
-}
-
-.related-toggle {
-  display: flex;
-  justify-content: center;
-  margin: 26px -16px 20px;
-  border-top: 1px solid #aeb7c4;
-}
-
-.related-toggle button {
-  margin-top: -16px;
-  background: #ffffff;
-}
-
-.related-search-row {
-  display: grid;
-  grid-template-columns: 195px minmax(260px, 620px) 195px;
-  align-items: center;
-  gap: 20px;
-  max-width: 1040px;
-  margin: 0 0 46px 72px;
-}
-
-.related-search-row label {
-  text-align: left;
-}
-
-.related-input-wrap {
-  position: relative;
-}
-
-.related-input-wrap input {
-  padding-left: 34px;
-}
-
-.search-icon {
-  position: absolute;
-  top: 7px;
-  left: 12px;
-  color: #0d1830;
-  font-size: 17px;
-}
-
-.empty-results {
-  margin: 0 0 4px;
-  text-align: center;
-  font-weight: 700;
-}
-
-.tabs-section {
-  background: #f7f8fa;
-  padding-top: 28px;
-}
-
-.tabs {
-  display: flex;
-  align-items: flex-end;
-  gap: 0;
-  padding-left: 0;
-  border-bottom: 1px solid var(--tab-border);
-}
-
-.tab {
-  min-height: 35px;
-  padding: 8px 11px;
-  color: #071126;
-  background: var(--tab-bg);
-  border: 1px solid var(--tab-border);
-  border-bottom: 0;
-}
-
-.tab + .tab {
-  margin-left: -1px;
-}
-
-.tab.active {
-  position: relative;
-  background: #ffffff;
-  color: #00856f;
-  border-top: 3px solid #00856f;
-  padding-top: 6px;
-}
-
-.tab-panel {
-  display: none;
-  margin: 0 12px 34px 0;
-  padding: 14px 24px 28px 70px;
-  background: #ffffff;
-  border: 1px solid var(--tab-border);
-  border-top: 0;
-  min-height: 260px;
-}
-
-.tab-panel.active {
-  display: block;
-}
-
-.tab-row {
-  grid-template-columns: 124px minmax(0, 852px);
-  align-items: start;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.watch-tools {
-  display: grid;
-  grid-template-columns: 32px 32px minmax(0, 1fr);
-  gap: 4px;
-}
-
-.watch-tools button {
-  padding: 0;
-}
-
-.work-notes-row {
-  align-items: start;
+  min-height: 250px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 0.86rem;
 }
 
 .work-notes {
-  min-height: 242px;
-  background: var(--work-note-bg);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 220px;
+  background: var(--warning-bg);
 }
 
-.work-tools {
-  grid-column: 2;
+.small-textarea {
+  min-height: 90px;
 }
 
-.placeholder-box {
-  max-width: 960px;
-  padding: 28px;
-  color: var(--muted);
-  border: 1px dashed #aab4c2;
-  background: #fbfcff;
-}
-
-.scratchpad-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 24px;
-  max-width: 1030px;
-}
-
-.scratchpad-layout h2,
-.quick-actions-card h2 {
-  margin: 0 0 6px;
-  font-size: 16px;
-}
-
-.muted {
-  margin-top: 0;
-  color: var(--muted);
-}
-
-.scratchpad {
-  min-height: 210px;
-}
-
-.quick-actions-card {
-  align-self: start;
-  display: grid;
-  gap: 8px;
-  padding: 14px;
-  border: 1px solid #cad2df;
-  border-radius: 4px;
-  background: #fbfcff;
-}
-
-.quick-actions-card button {
+.ticket-output {
+  min-height: 640px;
   width: 100%;
-  text-align: left;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
-.quick-actions-card .danger {
+.button-row,
+.field-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.button-row {
+  margin-top: 12px;
+}
+
+.output-actions {
+  margin-bottom: 18px;
+}
+
+.field-tools {
+  justify-content: space-between;
+  margin: -4px 0 16px;
+}
+
+button {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 10px 14px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+button:hover {
+  background: #f8fafc;
+  border-color: #b8c7d8;
+  transform: translateY(-1px);
+}
+
+button.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+button.primary:hover {
+  background: var(--primary-hover);
+}
+
+.link-button {
+  color: var(--primary);
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.danger-text {
   color: var(--danger);
-  border-color: var(--danger);
 }
 
-.save-status {
-  display: block;
-  margin-top: 6px;
+.counter {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.82rem;
 }
 
-.resolution-grid {
+.optional-group {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0;
+}
+
+.optional-group summary {
+  cursor: pointer;
+  font-weight: 800;
+  padding: 16px;
+}
+
+.optional-grid {
+  padding: 0 16px 16px;
+}
+
+.tips {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.tips h3 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+
+.tips p,
+.tips li {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.tips ul {
+  margin: 10px 0 0 18px;
+  padding: 0;
+}
+
+.draft-list {
   display: grid;
-  grid-template-columns: 360px minmax(0, 560px);
-  gap: 24px;
-  max-width: 960px;
+  gap: 12px;
 }
 
-.stack-field {
+.draft-list.empty {
+  color: var(--muted);
   display: block;
 }
 
-.stack-field label {
-  display: block;
-  margin-bottom: 6px;
-  text-align: left;
+.draft-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 14px;
 }
 
-.stack-field textarea {
-  min-height: 140px;
+.draft-card h3 {
+  font-size: 1rem;
+  margin-bottom: 5px;
+}
+
+.draft-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.draft-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
 }
 
 .toast {
+  background: #111827;
+  border-radius: 999px;
+  color: #fff;
+  left: 50%;
+  opacity: 0;
+  padding: 10px 16px;
+  pointer-events: none;
   position: fixed;
-  top: 54px;
-  right: 16px;
-  z-index: 30;
-  display: none;
-  max-width: 360px;
-  padding: 10px 12px;
-  color: #0d2717;
-  background: #dff7e8;
-  border: 1px solid #8ccda4;
-  border-radius: 4px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  top: 18px;
+  transform: translate(-50%, -12px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 20;
 }
 
 .toast.visible {
-  display: block;
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
-@media (max-width: 980px) {
-  .topbar {
+@media (max-width: 1020px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .output-panel {
     position: static;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 6px;
   }
 
-  .form-grid-main,
-  .full-width-fields {
-    grid-template-columns: 1fr;
-    margin-left: 0;
-    gap: 12px;
-  }
-
-  .form-grid-main {
-    display: block;
-  }
-
-  .form-column + .form-column {
-    margin-top: 6px;
-  }
-
-  .field-row,
-  .wide-field,
-  .tab-row,
-  .related-search-row {
-    grid-template-columns: 1fr;
-    margin-left: 0;
-  }
-
-  .field-row label {
-    text-align: left;
-  }
-
-  .field-tools,
-  .work-tools {
-    grid-column: 1;
-  }
-
-  .tab-panel {
-    margin-right: 0;
-    padding-left: 14px;
-  }
-
-  .tabs {
-    overflow-x: auto;
-  }
-
-  .tab {
-    white-space: nowrap;
-  }
-
-  .scratchpad-layout,
-  .resolution-grid {
-    grid-template-columns: 1fr;
+  .ticket-output {
+    min-height: 420px;
   }
 }
 
-</style>
+@media (max-width: 680px) {
+  .app-header,
+  .layout {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .section-heading,
+  .draft-card {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .draft-actions {
+    justify-content: flex-start;
+  }
+}
+
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-left">
-      <button class="icon-button" type="button" aria-label="Back">&#8249;</button>
-      <button class="hamburger" type="button" aria-label="Menu"><span></span><span></span><span></span></button>
-      <div class="record-title">
-        <span>Incident</span>
-        <strong>New record</strong>
-      </div>
-    </div>
-
-    <div class="topbar-actions">
-      <button class="icon-only" type="button" title="Attachments">&#128206;</button>
-      <button class="icon-only" type="button" title="More actions">&#8943;</button>
-      <button id="topSaveBtn" class="action-button" type="button">Save</button>
-      <button id="submitBtn" class="action-button" type="button">Submit</button>
-      <button id="resolveBtn" class="action-button wide" type="button">Resolve Incident</button>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">IncidentRecorder</p>
+      <h1>Call-to-ticket helper</h1>
+      <p class="subtitle">Version 1 style layout with the full incident fields, detailed description template, and work notes generator.</p>
     </div>
   </header>
 
-  <main class="page-shell">
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <section class="record-panel" aria-label="Incident record form">
-      <div class="form-grid-main">
-        <div class="form-column">
-          <div class="field-row">
-            <label for="incidentNumber">Number <span class="help">?</span></label>
-            <input id="incidentNumber" type="text" disabled />
-          </div>
-
-          <div class="field-row">
-            <label for="openedFor"><span class="required">*</span>Opened for <span class="help">?</span></label>
-            <div class="lookup-field">
-              <input id="openedFor" type="text" autocomplete="off" />
-              <button type="button" aria-label="Lookup opened for">&#8981;</button>
-            </div>
-          </div>
-
-          <div class="field-row">
-            <label for="location">Location <span class="help">?</span></label>
-            <div class="lookup-field">
-              <input id="location" type="text" autocomplete="off" />
-              <button type="button" aria-label="Lookup location">&#8981;</button>
-            </div>
-          </div>
-
-          <div class="field-row">
-            <label for="contactPhone">Contact Phone Number</label>
-            <input id="contactPhone" type="tel" autocomplete="off" />
-          </div>
-
-          <div class="field-row">
-            <label for="channel"><span class="circle-check">&#9711;</span><span class="required">*</span>Channel <span class="help">?</span></label>
-            <select id="channel">
-              <option>Phone</option>
-              <option>Email</option>
-              <option>Slack</option>
-              <option>Chat</option>
-              <option>Self-Service</option>
-              <option>Monitoring</option>
-            </select>
-          </div>
-
-          <div class="field-row">
-            <label for="category"><span class="circle-check">&#9711;</span><span class="required">*</span>Category <span class="help">?</span></label>
-            <select id="category"></select>
-          </div>
-
-          <div class="field-row">
-            <label for="subcategory"><span class="required">*</span>Subcategory <span class="help">?</span></label>
-            <select id="subcategory"></select>
-          </div>
-
-          <div class="field-row">
-            <label for="service">Service</label>
-            <div class="lookup-field">
-              <input id="service" type="text" autocomplete="off" />
-              <button type="button" aria-label="Lookup service">&#8981;</button>
-            </div>
-          </div>
-
-          <div class="field-row">
-            <label for="serviceOffering">Service offering</label>
-            <div class="lookup-field">
-              <input id="serviceOffering" type="text" autocomplete="off" />
-              <button type="button" aria-label="Lookup service offering">&#8981;</button>
-            </div>
-          </div>
-
-          <div class="field-row">
-            <label for="partsRequest">Parts Request Number(s)</label>
-            <input id="partsRequest" type="text" autocomplete="off" />
-          </div>
+  <main class="layout">
+    <section class="panel form-panel">
+      <div class="section-heading">
+        <div>
+          <h2>Call workspace</h2>
+          <p class="section-note">Start with rough call notes, then generate the ticket fields and work notes.</p>
         </div>
-
-        <div class="form-column">
-          <div class="field-row">
-            <label for="state"><span class="circle-check">&#9711;</span>State <span class="help">?</span></label>
-            <select id="state">
-              <option>New</option>
-              <option>In Progress</option>
-              <option>On Hold</option>
-              <option>Resolved</option>
-              <option>Closed</option>
-            </select>
-          </div>
-
-          <div class="field-row">
-            <label for="businessImpact"><span class="circle-check">&#9711;</span><span class="required">*</span>Business Impact <span class="help">?</span></label>
-            <select id="businessImpact">
-              <option>Minor</option>
-              <option>Moderate</option>
-              <option>Major</option>
-              <option>Critical</option>
-            </select>
-          </div>
-
-          <div class="field-row">
-            <label for="userImpact"><span class="circle-check">&#9711;</span><span class="required">*</span>User Impact <span class="help">?</span></label>
-            <select id="userImpact">
-              <option>Single User: 1 user</option>
-              <option>Multiple Users: 2-10 users</option>
-              <option>Department: 11+ users</option>
-              <option>Site-wide</option>
-              <option>Enterprise-wide</option>
-            </select>
-          </div>
-
-          <div class="field-row">
-            <label for="urgency"><span class="circle-check">&#9711;</span><span class="required">*</span>Urgency <span class="help">?</span></label>
-            <select id="urgency">
-              <option>Low</option>
-              <option>Medium</option>
-              <option>High</option>
-              <option>Critical</option>
-            </select>
-          </div>
-
-          <div class="field-row">
-            <label for="priority">Priority <span class="help">?</span></label>
-            <input id="priority" type="text" disabled />
-          </div>
-
-          <div class="field-row">
-            <label for="assignmentGroup"><span class="circle-check">&#9711;</span><span class="required">*</span>Assignment Group <span class="help">?</span></label>
-            <div class="lookup-field">
-              <input id="assignmentGroup" type="text" value="T1 KeepStock" autocomplete="off" />
-              <button type="button" aria-label="Lookup assignment group">&#8981;</button>
-            </div>
-          </div>
-
-          <div class="field-row">
-            <label for="assignedTo"><span class="circle-check">&#9711;</span><span class="required">*</span>Assigned To <span class="help">?</span></label>
-            <div class="lookup-field with-info">
-              <input id="assignedTo" type="text" value="Clowie Moscare" autocomplete="off" />
-              <button type="button" aria-label="Lookup assigned to">&#8981;</button>
-              <button class="info-button" type="button" aria-label="Assigned to information">i</button>
-            </div>
-          </div>
-
-          <div class="field-row">
-            <label for="configurationItem">Configuration Item <span class="help">?</span></label>
-            <div class="lookup-field">
-              <input id="configurationItem" type="text" autocomplete="off" />
-              <button type="button" aria-label="Lookup configuration item">&#8981;</button>
-            </div>
-          </div>
-        </div>
+        <span id="saveStatus" class="status-pill">Not saved</span>
       </div>
 
-      <div class="full-width-fields">
-        <div class="field-row wide-field">
-          <label for="shortDescription"><span class="required">*</span>Short Description <span class="help">?</span></label>
-          <input id="shortDescription" type="text" maxlength="160" autocomplete="off" />
+      <form id="incidentForm" autocomplete="off">
+        <div class="field-group primary-notes">
+          <div class="group-title-row">
+            <h3>Draft call notes</h3>
+            <span class="mini-pill">Write fast here</span>
+          </div>
+          <label class="full-width">
+            Rough notes from the call
+            <textarea id="rawNotes" name="rawNotes" class="raw-notes" placeholder="Example: User reports Seaga PC/Data issue. Started around 9 AM. Verified machine is online. Checked badge reader and COM port. Restarted app. User confirmed machine is dispensing again."></textarea>
+          </label>
+          <div class="button-row">
+            <button id="generateBtn" class="primary" type="button">Generate ticket from draft notes</button>
+            <button id="saveBtn" type="button">Save draft</button>
+            <button id="submitBtn" type="button">Submit draft</button>
+            <button id="resolveBtn" type="button">Resolve incident</button>
+            <button id="clearBtn" type="button">New call</button>
+          </div>
         </div>
 
-        <div class="field-row wide-field details-row">
-          <label for="detailedDescription"><span class="required">*</span>Detailed Description <span class="help">?</span></label>
-          <textarea id="detailedDescription" class="details-textarea" maxlength="4000"></textarea>
+        <div class="field-group">
+          <h3>Caller and record</h3>
+          <div class="form-grid">
+            <label>
+              Number
+              <input id="incidentNumber" name="incidentNumber" type="text" placeholder="New record" disabled />
+            </label>
+
+            <label>
+              <span class="required">*</span> Opened for
+              <input id="openedFor" name="openedFor" type="text" placeholder="Example: John Smith" />
+            </label>
+
+            <label>
+              Caller name
+              <input id="callerName" name="callerName" type="text" placeholder="Optional if different" />
+            </label>
+
+            <label>
+              Contact phone number
+              <input id="contactPhone" name="contactPhone" type="tel" placeholder="Example: 555-123-4567" />
+            </label>
+
+            <label>
+              Location
+              <input id="location" name="location" type="text" placeholder="Example: Chicago site" />
+            </label>
+
+            <label>
+              Department / location note
+              <input id="department" name="department" type="text" placeholder="Example: Accounting / Chicago" />
+            </label>
+
+            <label>
+              <span class="required">*</span> Channel
+              <select id="channel" name="channel">
+                <option>Phone</option>
+                <option>Email</option>
+                <option>Slack</option>
+                <option>Chat</option>
+                <option>Self-Service</option>
+                <option>Monitoring</option>
+              </select>
+            </label>
+
+            <label>
+              Watch list
+              <input id="watchList" name="watchList" type="text" placeholder="Optional watchers" />
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <h3>Category and service</h3>
+          <div class="form-grid">
+            <label>
+              <span class="required">*</span> Category
+              <select id="category" name="category"></select>
+            </label>
+
+            <label>
+              <span class="required">*</span> Subcategory
+              <select id="subcategory" name="subcategory"></select>
+            </label>
+
+            <label>
+              Service
+              <input id="service" name="service" type="text" placeholder="Example: KeepStock" />
+            </label>
+
+            <label>
+              Service offering
+              <input id="serviceOffering" name="serviceOffering" type="text" placeholder="Optional" />
+            </label>
+
+            <label>
+              Parts Request Number(s)
+              <input id="partsRequest" name="partsRequest" type="text" placeholder="Optional" />
+            </label>
+
+            <label>
+              Configuration item
+              <input id="configurationItem" name="configurationItem" type="text" placeholder="CI, machine, or asset" />
+            </label>
+
+            <label>
+              Device / asset
+              <input id="deviceAsset" name="deviceAsset" type="text" placeholder="Device ID, machine, scanner, laptop, etc." />
+            </label>
+
+            <label>
+              Application / service note
+              <input id="applicationService" name="applicationService" type="text" placeholder="Optional extra application detail" />
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <h3>Impact and assignment</h3>
+          <div class="form-grid">
+            <label>
+              State
+              <select id="state" name="state">
+                <option>New</option>
+                <option>In Progress</option>
+                <option>On Hold</option>
+                <option>Resolved</option>
+                <option>Closed</option>
+              </select>
+            </label>
+
+            <label>
+              <span class="required">*</span> Business Impact
+              <select id="businessImpact" name="businessImpact">
+                <option>Minor</option>
+                <option>Moderate</option>
+                <option>Major</option>
+                <option>Critical</option>
+              </select>
+            </label>
+
+            <label>
+              <span class="required">*</span> User Impact
+              <select id="userImpact" name="userImpact">
+                <option>Single User: 1 user</option>
+                <option>Multiple Users: 2-10 users</option>
+                <option>Department: 11+ users</option>
+                <option>Site-wide</option>
+                <option>Enterprise-wide</option>
+              </select>
+            </label>
+
+            <label>
+              <span class="required">*</span> Urgency
+              <select id="urgency" name="urgency">
+                <option>Low</option>
+                <option>Medium</option>
+                <option>High</option>
+                <option>Critical</option>
+              </select>
+            </label>
+
+            <label>
+              Priority
+              <input id="priority" name="priority" type="text" disabled />
+            </label>
+
+            <label>
+              <span class="required">*</span> Assignment Group
+              <input id="assignmentGroup" name="assignmentGroup" type="text" value="T1 KeepStock" />
+            </label>
+
+            <label>
+              <span class="required">*</span> Assigned To
+              <input id="assignedTo" name="assignedTo" type="text" value="Clowie Moscare" />
+            </label>
+
+            <label>
+              Related Search
+              <input id="relatedSearch" name="relatedSearch" type="search" placeholder="Optional knowledge search" />
+            </label>
+
+            <label>
+              Knowledge scope
+              <select id="knowledgeScope" name="knowledgeScope">
+                <option>Knowledge & Catalog (All)</option>
+                <option>Knowledge</option>
+                <option>Catalog</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <h3>Ticket descriptions</h3>
+
+          <label class="full-width">
+            <span class="required">*</span> Short Description
+            <input id="shortDescription" name="shortDescription" type="text" maxlength="180" placeholder="Generated from draft notes or type your own" />
+          </label>
+
+          <label class="full-width">
+            <span class="required">*</span> Detailed Description
+            <textarea id="detailedDescription" name="detailedDescription" class="details-textarea" maxlength="4000"></textarea>
+          </label>
           <div class="field-tools">
-            <span id="detailedCounter">4000 characters remaining of 4000 characters</span>
-            <button id="resetDetailedBtn" type="button">Reset detailed description template</button>
+            <span id="detailedCounter" class="counter">4000 characters remaining of 4000 characters</span>
+            <button id="resetDetailedBtn" type="button">Reset detailed template</button>
             <button id="copyDetailedBtn" type="button">Copy detailed description</button>
           </div>
-        </div>
-      </div>
 
-      <div class="related-toggle">
-        <button type="button">Related Search Results &#8964;</button>
-      </div>
-
-      <div class="related-search-row">
-        <label for="relatedSearch">Related Search <span class="help">?</span></label>
-        <div class="related-input-wrap">
-          <span class="search-icon">&#8981;</span>
-          <input id="relatedSearch" type="search" />
-        </div>
-        <select id="knowledgeScope" aria-label="Knowledge search scope">
-          <option>Knowledge & Catalog (All)</option>
-          <option>Knowledge</option>
-          <option>Catalog</option>
-        </select>
-      </div>
-
-      <p class="empty-results">No results to display</p>
-    </section>
-
-    <section class="tabs-section" aria-label="Incident notes and activity">
-      <nav class="tabs" aria-label="Incident tabs">
-        <button class="tab active" data-tab="communication" type="button">Communication</button>
-        <button class="tab" data-tab="relatedRecords" type="button">Related Records</button>
-        <button class="tab" data-tab="activity" type="button">Activity</button>
-        <button class="tab" data-tab="governance" type="button">Governance</button>
-        <button class="tab" data-tab="quality" type="button">Quality</button>
-        <button class="tab" data-tab="resolution" type="button">* Resolution Information</button>
-      </nav>
-
-      <div class="tab-panel active" id="communication">
-        <div class="field-row tab-row">
-          <label for="watchList">Watch List <span class="help">?</span></label>
-          <div class="watch-tools">
-            <button type="button" aria-label="Lock watch list">&#128274;</button>
-            <button type="button" aria-label="Add watcher">&#8853;</button>
-            <input id="watchList" type="text" autocomplete="off" />
-          </div>
-        </div>
-
-        <div class="field-row tab-row work-notes-row">
-          <label for="workNotes"><span class="circle-check">&#9711;</span><span class="required">*</span>Work notes <span class="help">?</span></label>
-          <textarea id="workNotes" class="work-notes" maxlength="4000"></textarea>
-          <div class="field-tools work-tools">
-            <span id="workCounter">4000 characters remaining of 4000 characters</span>
+          <label class="full-width">
+            <span class="required">*</span> Work Notes
+            <textarea id="workNotes" name="workNotes" class="work-notes" maxlength="4000"></textarea>
+          </label>
+          <div class="field-tools">
+            <span id="workCounter" class="counter">4000 characters remaining of 4000 characters</span>
             <button id="resetWorkBtn" type="button">Reset work notes template</button>
             <button id="copyWorkBtn" type="button">Copy work notes</button>
           </div>
         </div>
-      </div>
 
-      <div class="tab-panel" id="relatedRecords">
-        <div class="placeholder-box">Related records can be added here later.</div>
-      </div>
+        <details class="field-group optional-group">
+          <summary>Resolution and close notes</summary>
+          <div class="form-grid optional-grid">
+            <label>
+              Resolution Code
+              <select id="resolutionCode" name="resolutionCode">
+                <option value="">-- None --</option>
+                <option>Resolved by Service Desk</option>
+                <option>Resolved by T2</option>
+                <option>Vendor / Carrier Issue</option>
+                <option>User Education</option>
+                <option>Duplicate Incident</option>
+              </select>
+            </label>
 
-      <div class="tab-panel" id="activity">
-        <div class="scratchpad-layout">
-          <div>
-            <h2>Call scratchpad</h2>
-            <p class="muted">Type rough notes during the call, then use the buttons to fill the ticket fields.</p>
-            <textarea id="callScratchpad" class="scratchpad" placeholder="Example: User cannot login to GCOM Mobile App. Started this morning. Verified account active. Had user reset password. Cleared app cache. User logged in successfully."></textarea>
+            <label class="full-width-grid">
+              Close Notes
+              <textarea id="closeNotes" name="closeNotes" class="small-textarea" placeholder="Final customer-facing close notes..."></textarea>
+            </label>
           </div>
-          <div class="quick-actions-card">
-            <h2>Ticket helpers</h2>
-            <button id="buildShortBtn" type="button">Build short description from scratchpad</button>
-            <button id="appendWorkBtn" type="button">Append scratchpad to work notes</button>
-            <button id="copyAllBtn" type="button">Copy full ticket draft</button>
-            <button id="downloadBtn" type="button">Download .txt</button>
-            <button id="clearBtn" class="danger" type="button">New / clear form</button>
-            <span id="saveStatus" class="save-status">Not saved</span>
-          </div>
+        </details>
+      </form>
+    </section>
+
+    <section class="panel output-panel">
+      <div class="section-heading">
+        <div>
+          <h2>Generated ticket</h2>
+          <p class="section-note">Editable output created from your draft notes and fields.</p>
         </div>
+        <span class="status-pill">Editable</span>
       </div>
 
-      <div class="tab-panel" id="governance">
-        <div class="placeholder-box">Governance fields can be added here later.</div>
+      <textarea id="ticketOutput" class="ticket-output" placeholder="Your generated ticket will appear here. You can edit it before copying."></textarea>
+
+      <div class="button-row output-actions">
+        <button id="copyBtn" class="primary" type="button">Copy ticket</button>
+        <button id="copyWorkFromOutputBtn" type="button">Copy work notes</button>
+        <button id="copyDetailedFromOutputBtn" type="button">Copy detailed description</button>
+        <button id="downloadBtn" type="button">Download .txt</button>
       </div>
 
-      <div class="tab-panel" id="quality">
-        <div class="placeholder-box">Quality checks can be added here later.</div>
+      <div class="tips">
+        <h3>Quick note pattern</h3>
+        <p>You can write short lines during the call. The app will organize them into Issue, Troubleshooting Steps, and Resolution.</p>
+        <ul>
+          <li>User reports unable to login to GCOM Mobile App.</li>
+          <li>Verified account is active.</li>
+          <li>Cleared app cache and had user retry login.</li>
+          <li>User confirmed login worked.</li>
+        </ul>
       </div>
+    </section>
 
-      <div class="tab-panel" id="resolution">
-        <div class="resolution-grid">
-          <div class="field-row stack-field">
-            <label for="resolutionCode">Resolution Code</label>
-            <select id="resolutionCode">
-              <option value="">-- None --</option>
-              <option>Resolved by Service Desk</option>
-              <option>Resolved by T2</option>
-              <option>Vendor / Carrier Issue</option>
-              <option>User Education</option>
-              <option>Duplicate Incident</option>
-            </select>
-          </div>
-          <div class="field-row stack-field">
-            <label for="closeNotes">Close Notes</label>
-            <textarea id="closeNotes" placeholder="Final customer-facing close notes..."></textarea>
-          </div>
+    <section class="panel drafts-panel">
+      <div class="section-heading">
+        <div>
+          <h2>Saved drafts</h2>
+          <p class="section-note">Saved only in this browser.</p>
         </div>
+        <button id="deleteAllDraftsBtn" class="link-button" type="button">Delete all</button>
       </div>
+      <div id="draftList" class="draft-list empty">No saved drafts yet.</div>
     </section>
   </main>
 
   <script>
-const STORAGE_KEY = "incidentRecorderServiceNowUiV2";
+const STORAGE_KEY = "incidentRecorderDraftsV3V1UiFullFields";
 
 const AMS_TOOLBOX_SUBCATEGORIES = [
   "Hardware issue: - Drop sensor",
@@ -967,59 +828,23 @@ const CATEGORY_MAP = {
   ]
 };
 
-const DETAILED_TEMPLATE = `Template Header (DO NOT REMOVE)
-**Delete any unused sections below**
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-Slack Thread URL:
-
-Parent/PRB Template: [Update/add to section below with all required data from Parents/PRB's]
-
-Crib/Program id:
-Program name:
-Company name:
-Site ID (If Applicable):
-Acct #:
-
-
-Software Version:
-Device ID (Affected):
-Machine Serial Number(s):
-
-Cradlepoint Serial Number:
-IMEI:
-Carrier:
-
-Badge Reader:
-Model:
-
-Phone Model:
-Phone Software Version:
-Application:
-Application Version:
-Time issue occurred:`;
-
-const WORK_NOTES_TEMPLATE = `Issue:
-
-
-Troubleshooting Steps:
-
-
-Resolution:
-
-
-Reason for Escalation: [Only if escalated to T2]`;
-
 const FORM_FIELD_IDS = [
   "incidentNumber",
   "openedFor",
-  "location",
+  "callerName",
   "contactPhone",
+  "location",
+  "department",
   "channel",
+  "watchList",
   "category",
   "subcategory",
   "service",
   "serviceOffering",
   "partsRequest",
+  "configurationItem",
+  "deviceAsset",
+  "applicationService",
   "state",
   "businessImpact",
   "userImpact",
@@ -1027,14 +852,12 @@ const FORM_FIELD_IDS = [
   "priority",
   "assignmentGroup",
   "assignedTo",
-  "configurationItem",
-  "shortDescription",
-  "detailedDescription",
   "relatedSearch",
   "knowledgeScope",
-  "watchList",
+  "rawNotes",
+  "shortDescription",
+  "detailedDescription",
   "workNotes",
-  "callScratchpad",
   "resolutionCode",
   "closeNotes"
 ];
@@ -1054,9 +877,101 @@ const REQUIRED_FIELD_IDS = [
   "workNotes"
 ];
 
+const WORK_NOTES_TEMPLATE = `Issue:
+
+
+Troubleshooting Steps:
+
+
+Resolution:
+
+
+Reason for Escalation: [Only if escalated to T2]`;
+
+function detailedTemplate(data = {}, sections = {}) {
+  const device = displayValue(data.deviceAsset || data.configurationItem, "");
+  const application = displayValue(data.applicationService || data.service, "");
+  const timeIssueOccurred = displayValue(sections.timeIssueOccurred, "");
+
+  return `Template Header (DO NOT REMOVE)
+**Delete any unused sections below**
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Slack Thread URL:
+
+Parent/PRB Template: [Update/add to section below with all required data from Parents/PRB's]
+
+Crib/Program id:
+Program name:
+Company name:
+Site ID (If Applicable):
+Acct #:
+
+
+Software Version:
+Device ID (Affected): ${device}
+Machine Serial Number(s):
+
+Cradlepoint Serial Number:
+IMEI:
+Carrier:
+
+Badge Reader:
+Model:
+
+Phone Model:
+Phone Software Version:
+Application: ${application}
+Application Version:
+Time issue occurred: ${timeIssueOccurred}`;
+}
+
 const $ = (id) => document.getElementById(id);
 
-function populateCategories() {
+const elements = {
+  form: $("incidentForm"),
+  ticketOutput: $("ticketOutput"),
+  saveStatus: $("saveStatus"),
+  draftList: $("draftList"),
+  toast: $("toast"),
+  generateBtn: $("generateBtn"),
+  saveBtn: $("saveBtn"),
+  submitBtn: $("submitBtn"),
+  resolveBtn: $("resolveBtn"),
+  clearBtn: $("clearBtn"),
+  copyBtn: $("copyBtn"),
+  copyWorkFromOutputBtn: $("copyWorkFromOutputBtn"),
+  copyDetailedFromOutputBtn: $("copyDetailedFromOutputBtn"),
+  downloadBtn: $("downloadBtn"),
+  deleteAllDraftsBtn: $("deleteAllDraftsBtn"),
+  resetDetailedBtn: $("resetDetailedBtn"),
+  resetWorkBtn: $("resetWorkBtn"),
+  copyDetailedBtn: $("copyDetailedBtn"),
+  copyWorkBtn: $("copyWorkBtn")
+};
+
+function getValue(id) {
+  const element = $(id);
+  return element ? element.value.trim() : "";
+}
+
+function displayValue(value, fallback = "Not provided") {
+  return value && String(value).trim() ? String(value).trim() : fallback;
+}
+
+function setSaveStatus(message) {
+  elements.saveStatus.textContent = message;
+}
+
+function showToast(message) {
+  elements.toast.textContent = message;
+  elements.toast.classList.add("visible");
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => {
+    elements.toast.classList.remove("visible");
+  }, 2600);
+}
+
+function populateCategories(preferredCategory = "") {
   const categorySelect = $("category");
   categorySelect.innerHTML = "";
 
@@ -1067,12 +982,15 @@ function populateCategories() {
     categorySelect.appendChild(option);
   });
 
-  categorySelect.value = "Keepstock - Seaga - PC/Data";
+  categorySelect.value = preferredCategory && CATEGORY_MAP[preferredCategory]
+    ? preferredCategory
+    : "Keepstock - Seaga - PC/Data";
+
   populateSubcategories();
 }
 
 function populateSubcategories(preferredValue = "") {
-  const category = $("category").value;
+  const category = getValue("category");
   const subcategorySelect = $("subcategory");
   const subcategories = CATEGORY_MAP[category] || [];
 
@@ -1095,20 +1013,10 @@ function populateSubcategories(preferredValue = "") {
   }
 }
 
-function setDefaultTemplates() {
-  if (!$("detailedDescription").value.trim()) {
-    $("detailedDescription").value = DETAILED_TEMPLATE;
-  }
-
-  if (!$("workNotes").value.trim()) {
-    $("workNotes").value = WORK_NOTES_TEMPLATE;
-  }
-}
-
 function calculatePriority() {
-  const impact = $("businessImpact").value;
-  const urgency = $("urgency").value;
-  const userImpact = $("userImpact").value;
+  const impact = getValue("businessImpact");
+  const urgency = getValue("urgency");
+  const userImpact = getValue("userImpact");
 
   let priority = "4 - Low";
 
@@ -1124,123 +1032,353 @@ function calculatePriority() {
 }
 
 function updateCounter(textareaId, counterId) {
-  const element = $(textareaId);
-  const max = Number(element.getAttribute("maxlength")) || 4000;
-  const remaining = max - element.value.length;
-  $(counterId).textContent = `${remaining} characters remaining of ${max} characters`;
+  const textarea = $(textareaId);
+  const counter = $(counterId);
+  if (!textarea || !counter) return;
+  const max = Number(textarea.getAttribute("maxlength")) || 4000;
+  const remaining = Math.max(max - textarea.value.length, 0);
+  counter.textContent = `${remaining} characters remaining of ${max} characters`;
 }
 
-function showToast(message) {
-  const toast = $("toast");
-  toast.textContent = message;
-  toast.classList.add("visible");
-  window.clearTimeout(showToast.timer);
-  showToast.timer = window.setTimeout(() => {
-    toast.classList.remove("visible");
-  }, 2600);
+function updateCounters() {
+  updateCounter("detailedDescription", "detailedCounter");
+  updateCounter("workNotes", "workCounter");
 }
 
-function getFieldValues() {
+function getFormData() {
   const data = {};
-  FORM_FIELD_IDS.forEach((id) => {
-    const element = $(id);
-    if (element) {
-      data[id] = element.value;
-    }
+  FORM_FIELD_IDS.forEach((field) => {
+    data[field] = getValue(field);
   });
+  data.ticketOutput = elements.ticketOutput.value.trim();
   return data;
 }
 
-function setFieldValues(data) {
+function setFormData(data) {
   if (!data || typeof data !== "object") return;
 
   if (data.category && CATEGORY_MAP[data.category]) {
-    $("category").value = data.category;
+    populateCategories(data.category);
     populateSubcategories(data.subcategory || "");
   }
 
-  FORM_FIELD_IDS.forEach((id) => {
-    const element = $(id);
-    if (!element || id === "subcategory") return;
-    if (Object.prototype.hasOwnProperty.call(data, id)) {
-      element.value = data[id];
+  FORM_FIELD_IDS.forEach((field) => {
+    const element = $(field);
+    if (!element || field === "subcategory") return;
+    if (Object.prototype.hasOwnProperty.call(data, field)) {
+      element.value = data[field] || "";
     }
   });
 
-  if (data.subcategory) {
-    $("subcategory").value = data.subcategory;
+  if (Object.prototype.hasOwnProperty.call(data, "subcategory")) {
+    $("subcategory").value = data.subcategory || "";
   }
 
+  elements.ticketOutput.value = data.ticketOutput || "";
   calculatePriority();
   updateCounters();
 }
 
-function saveDraft() {
-  const data = getFieldValues();
-  data.savedAt = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  $("saveStatus").textContent = `Saved ${new Date().toLocaleTimeString()}`;
-  showToast("Draft saved in this browser.");
+function setDefaultTemplates() {
+  $("detailedDescription").value = detailedTemplate(getFormData());
+  $("workNotes").value = WORK_NOTES_TEMPLATE;
+  updateCounters();
 }
 
-function loadDraft() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return false;
-
-  try {
-    const data = JSON.parse(raw);
-    setFieldValues(data);
-    if (data.savedAt) {
-      $("saveStatus").textContent = `Loaded saved draft from ${new Date(data.savedAt).toLocaleString()}`;
-    }
-    return true;
-  } catch (error) {
-    console.warn("Could not load saved draft", error);
-    return false;
-  }
+function splitNotes(rawNotes) {
+  return String(rawNotes || "")
+    .replace(/[\u2022\u00b7]/g, "\n")
+    .split(/\n|\r|;/)
+    .flatMap((line) => line.split(/(?<=[.!?])\s+/))
+    .map((line) => normalizeLine(line))
+    .filter(Boolean);
 }
 
-function resetForm() {
-  const keepConfirmed = window.confirm("Clear this incident record and start a new one?");
-  if (!keepConfirmed) return;
+function parseLabeledSections(rawNotes) {
+  const text = String(rawNotes || "");
+  const result = {};
+  const patterns = {
+    issue: /(?:^|\n)\s*Issue:\s*([\s\S]*?)(?=\n\s*(?:Troubleshooting Steps|Resolution|Reason for Escalation):|$)/i,
+    troubleshooting: /(?:^|\n)\s*Troubleshooting Steps:\s*([\s\S]*?)(?=\n\s*(?:Issue|Resolution|Reason for Escalation):|$)/i,
+    resolution: /(?:^|\n)\s*Resolution:\s*([\s\S]*?)(?=\n\s*(?:Issue|Troubleshooting Steps|Reason for Escalation):|$)/i,
+    escalationReason: /(?:^|\n)\s*Reason for Escalation:\s*([\s\S]*?)(?=\n\s*(?:Issue|Troubleshooting Steps|Resolution):|$)/i
+  };
 
-  FORM_FIELD_IDS.forEach((id) => {
-    const element = $(id);
-    if (element && !element.disabled) {
-      element.value = "";
+  Object.entries(patterns).forEach(([key, regex]) => {
+    const match = text.match(regex);
+    if (match && match[1].trim()) {
+      result[key] = match[1].trim();
     }
   });
 
-  $("channel").value = "Phone";
-  $("state").value = "New";
-  $("businessImpact").value = "Minor";
-  $("userImpact").value = "Single User: 1 user";
-  $("urgency").value = "Low";
-  $("assignmentGroup").value = "T1 KeepStock";
-  $("assignedTo").value = "Clowie Moscare";
-  $("category").value = "Keepstock - Seaga - PC/Data";
-  populateSubcategories();
-  setDefaultTemplates();
-  calculatePriority();
-  updateCounters();
-  localStorage.removeItem(STORAGE_KEY);
-  $("saveStatus").textContent = "Not saved";
-  showToast("New incident record started.");
+  return result;
+}
+
+function findFirstMatch(lines, patterns) {
+  return lines.find((line) => patterns.some((pattern) => pattern.test(line))) || "";
+}
+
+function findLastMatch(lines, patterns) {
+  return [...lines].reverse().find((line) => patterns.some((pattern) => pattern.test(line))) || "";
+}
+
+function findAllMatches(lines, patterns) {
+  return lines.filter((line) => patterns.some((pattern) => pattern.test(line)));
+}
+
+function uniqueLines(lines) {
+  const seen = new Set();
+  return lines
+    .map((line) => normalizeLine(line))
+    .filter(Boolean)
+    .filter((line) => {
+      const key = line.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function normalizeLine(text) {
+  return String(text || "")
+    .replace(/^[-*]+\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function capitalizeSentence(text) {
+  const value = normalizeLine(text);
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function bulletList(lines) {
+  const cleaned = uniqueLines(lines);
+  if (!cleaned.length) {
+    return "- Not provided.";
+  }
+  return cleaned.map((line) => `- ${capitalizeSentence(line)}`).join("\n");
+}
+
+function cleanIssueText(text) {
+  return capitalizeSentence(
+    String(text || "")
+      .replace(/^(issue|problem|error)[:\-\s]*/i, "")
+      .replace(/^user\s+(says|said|reports|reported|states|stated)\s+(that\s+)?/i, "")
+      .replace(/^customer\s+(says|said|reports|reported|states|stated)\s+(that\s+)?/i, "")
+  );
+}
+
+function findTimeIssueOccurred(lines) {
+  const match = findFirstMatch(lines, [
+    /time issue occurred/i,
+    /started\s+(at|around|about|this|today|yesterday|on)/i,
+    /began\s+(at|around|about|this|today|yesterday|on)/i,
+    /occurred\s+(at|around|about|on)/i,
+    /since\s+(\d|this|today|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i
+  ]);
+
+  return match ? capitalizeSentence(match) : "";
+}
+
+function extractSections(rawNotes) {
+  const lines = splitNotes(rawNotes);
+  const labeled = parseLabeledSections(rawNotes);
+
+  const issuePatterns = [
+    /user\s+(says|said|reports|reported|states|stated)/i,
+    /customer\s+(says|said|reports|reported|states|stated)/i,
+    /issue|problem|error/i,
+    /cannot|can't|unable|not able/i,
+    /not working|keeps|stuck|failed|failure|down/i
+  ];
+
+  const impactPatterns = [
+    /impact|affect|affected/i,
+    /cannot|can't|unable|not able/i,
+    /down|outage|no access|blocked/i,
+    /all users|multiple users|single user|only user|site-wide|enterprise/i
+  ];
+
+  const troubleshootingPatterns = [
+    /checked|verified|confirmed|reviewed|validated/i,
+    /had user|asked user|walked user|guided user/i,
+    /restart|restarted|reboot|rebooted|power cycle|power cycled/i,
+    /clear|cleared|reset|removed|reinstalled|installed|updated|refreshed/i,
+    /tested|ran|opened|closed|logged|signed|launched/i,
+    /enabled|disabled|connected|disconnected|reconnected/i,
+    /ping|ipconfig|nslookup|tracert|lookup/i,
+    /checked logs|reviewed logs|validated network|verified account/i,
+    /badge reader|com port|scanner|cradlepoint|carrier|imei/i
+  ];
+
+  const findingPatterns = [
+    /found|noticed|observed|confirmed|verified|validated/i,
+    /active|inactive|locked|disabled|expired/i,
+    /same issue|still|error|working|not working/i,
+    /successful|failed|failure/i
+  ];
+
+  const resolutionPatterns = [
+    /resolved|fixed|restored|completed/i,
+    /working now|now working|able to|successfully|success/i,
+    /confirmed.*(working|resolved|connected|syncing|login|logged|dispensing)/i,
+    /no further action|no further issues/i
+  ];
+
+  const escalationPatterns = [
+    /escalat/i,
+    /sent to t2|assigned to t2|tier 2|t2/i,
+    /requires.*(t2|vendor|carrier|engineering|network)/i,
+    /need.*(t2|vendor|carrier|engineering|network)/i,
+    /unable to resolve|not resolved|requires further/i
+  ];
+
+  const issueLine = labeled.issue || findFirstMatch(lines, issuePatterns) || lines[0] || "Not provided.";
+  const impactLine = findFirstMatch(lines, impactPatterns) || "Not provided.";
+  const troubleshootingLines = labeled.troubleshooting
+    ? splitNotes(labeled.troubleshooting)
+    : findAllMatches(lines, troubleshootingPatterns).filter((line) => line !== issueLine);
+  const findingLines = findAllMatches(lines, findingPatterns);
+  const resolutionLine = labeled.resolution || findLastMatch(lines, resolutionPatterns) || "Not provided.";
+  const escalationLine = labeled.escalationReason || findLastMatch(lines, escalationPatterns) || "";
+
+  return {
+    issue: cleanIssueText(issueLine),
+    impact: capitalizeSentence(impactLine),
+    troubleshooting: uniqueLines(troubleshootingLines),
+    findings: uniqueLines(findingLines),
+    resolution: capitalizeSentence(resolutionLine),
+    escalationReason: escalationLine ? capitalizeSentence(escalationLine) : "",
+    timeIssueOccurred: findTimeIssueOccurred(lines),
+    rawLines: lines
+  };
+}
+
+function buildShortDescription(data, sections) {
+  const issue = cleanIssueText(sections.issue || data.rawNotes || "Incident reported");
+  const prefix = data.subcategory ? `${data.subcategory} - ` : data.category ? `${data.category} - ` : "";
+  return `${prefix}${issue}`.slice(0, 180);
+}
+
+function buildWorkNotes(sections) {
+  return `Issue:
+${displayValue(sections.issue)}
+
+Troubleshooting Steps:
+${bulletList(sections.troubleshooting)}
+
+Resolution:
+${displayValue(sections.resolution)}
+
+Reason for Escalation: ${sections.escalationReason || "[Only if escalated to T2]"}`;
+}
+
+function buildGeneratedTicket(data, sections) {
+  const createdAt = new Date().toLocaleString();
+  const nextSteps = data.state === "Resolved"
+    ? "No further action required at this time. Confirm close notes and resolve in the ticketing system."
+    : "Follow up as needed or escalate if the issue remains unresolved.";
+
+  return `Incident Ticket Draft
+Created: ${createdAt}
+
+Record Fields:
+Number: ${displayValue(data.incidentNumber, "New record")}
+Opened for: ${displayValue(data.openedFor)}
+Caller Name: ${displayValue(data.callerName || data.openedFor)}
+Contact Phone Number: ${displayValue(data.contactPhone)}
+Location: ${displayValue(data.location || data.department)}
+Channel: ${displayValue(data.channel)}
+Category: ${displayValue(data.category)}
+Subcategory: ${displayValue(data.subcategory)}
+Service: ${displayValue(data.service)}
+Service Offering: ${displayValue(data.serviceOffering)}
+Parts Request Number(s): ${displayValue(data.partsRequest)}
+Configuration Item: ${displayValue(data.configurationItem)}
+Device / Asset: ${displayValue(data.deviceAsset)}
+Application / Service Note: ${displayValue(data.applicationService)}
+State: ${displayValue(data.state)}
+Business Impact: ${displayValue(data.businessImpact)}
+User Impact: ${displayValue(data.userImpact)}
+Urgency: ${displayValue(data.urgency)}
+Priority: ${displayValue(data.priority)}
+Assignment Group: ${displayValue(data.assignmentGroup)}
+Assigned To: ${displayValue(data.assignedTo)}
+Watch List: ${displayValue(data.watchList)}
+Related Search: ${displayValue(data.relatedSearch)}
+Knowledge Scope: ${displayValue(data.knowledgeScope)}
+
+Short Description:
+${displayValue(data.shortDescription)}
+
+Issue:
+${displayValue(sections.issue)}
+
+Impact:
+${displayValue(sections.impact)}
+
+Troubleshooting Performed:
+${bulletList(sections.troubleshooting)}
+
+Findings:
+${bulletList(sections.findings)}
+
+Resolution:
+${displayValue(sections.resolution)}
+
+Reason for Escalation:
+${sections.escalationReason || "Not escalated / Not provided."}
+
+Next Steps:
+${nextSteps}
+
+Detailed Description:
+${displayValue(data.detailedDescription)}
+
+Work Notes:
+${displayValue(data.workNotes)}
+
+Resolution Code:
+${displayValue(data.resolutionCode)}
+
+Close Notes:
+${displayValue(data.closeNotes)}
+
+Raw Call Notes:
+${displayValue(data.rawNotes)}`;
+}
+
+function generateTicket() {
+  const originalData = getFormData();
+  const sections = extractSections(originalData.rawNotes || originalData.workNotes);
+
+  const updatedData = {
+    ...originalData,
+    shortDescription: buildShortDescription(originalData, sections),
+    detailedDescription: detailedTemplate(originalData, sections),
+    workNotes: buildWorkNotes(sections)
+  };
+
+  if (updatedData.state === "Resolved" && !updatedData.closeNotes.trim() && sections.resolution !== "Not provided.") {
+    updatedData.closeNotes = sections.resolution;
+  }
+
+  setFormData(updatedData);
+  const finalData = getFormData();
+  elements.ticketOutput.value = buildGeneratedTicket(finalData, sections);
+  setSaveStatus("Generated");
+  showToast("Ticket generated from draft notes.");
 }
 
 function validateRequiredFields() {
-  const missing = REQUIRED_FIELD_IDS.filter((id) => {
-    const element = $(id);
-    return element && !element.value.trim();
-  });
+  const missing = REQUIRED_FIELD_IDS.filter((field) => !getValue(field));
 
-  if (missing.length > 0) {
-    const labels = missing.map((id) => fieldLabel(id)).join(", ");
-    showToast(`Missing required field(s): ${labels}`);
-    return false;
-  }
+  if (!missing.length) return true;
 
-  return true;
+  const labels = missing.map(fieldLabel).join(", ");
+  showToast(`Missing required field(s): ${labels}`);
+  return false;
 }
 
 function fieldLabel(id) {
@@ -1256,20 +1394,56 @@ function fieldLabel(id) {
     assignedTo: "Assigned To",
     shortDescription: "Short Description",
     detailedDescription: "Detailed Description",
-    workNotes: "Work notes"
+    workNotes: "Work Notes"
   };
   return labels[id] || id;
 }
 
-function copyText(text, successMessage) {
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(text).then(() => showToast(successMessage)).catch(() => fallbackCopyText(text, successMessage));
-  } else {
-    fallbackCopyText(text, successMessage);
+function submitDraft() {
+  if (!validateRequiredFields()) return;
+  saveDraft();
+  showToast("Static app only: draft saved locally. Copy the generated ticket into your ticketing system.");
+}
+
+function resolveIncident() {
+  $("state").value = "Resolved";
+  if (!getValue("resolutionCode")) {
+    $("resolutionCode").value = "Resolved by Service Desk";
+  }
+
+  const workNotes = getValue("workNotes");
+  const resolutionMatch = workNotes.match(/Resolution:\s*([\s\S]*?)(?:\n\s*Reason for Escalation:|$)/i);
+  const resolutionText = resolutionMatch ? resolutionMatch[1].trim() : "";
+
+  if (resolutionText && !getValue("closeNotes")) {
+    $("closeNotes").value = resolutionText;
+  }
+
+  calculatePriority();
+  setSaveStatus("Unsaved changes");
+  showToast("State changed to Resolved. Review close notes before submitting.");
+}
+
+async function copyText(text, successMessage) {
+  if (!text || !text.trim()) {
+    showToast("Nothing to copy yet.");
+    return;
+  }
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      fallbackCopyText(text);
+    }
+    showToast(successMessage);
+  } catch (error) {
+    fallbackCopyText(text);
+    showToast(successMessage);
   }
 }
 
-function fallbackCopyText(text, successMessage) {
+function fallbackCopyText(text) {
   const textarea = document.createElement("textarea");
   textarea.value = text;
   textarea.setAttribute("readonly", "");
@@ -1279,56 +1453,19 @@ function fallbackCopyText(text, successMessage) {
   textarea.select();
   document.execCommand("copy");
   document.body.removeChild(textarea);
-  showToast(successMessage);
-}
-
-function buildFullTicketDraft() {
-  const data = getFieldValues();
-  return `Incident Ticket Draft
-=====================
-Number: ${data.incidentNumber || "New record"}
-Opened for: ${data.openedFor || "Not provided"}
-Location: ${data.location || "Not provided"}
-Contact Phone Number: ${data.contactPhone || "Not provided"}
-Channel: ${data.channel || "Not provided"}
-Category: ${data.category || "Not provided"}
-Subcategory: ${data.subcategory || "Not provided"}
-Service: ${data.service || "Not provided"}
-Service offering: ${data.serviceOffering || "Not provided"}
-Parts Request Number(s): ${data.partsRequest || "Not provided"}
-State: ${data.state || "Not provided"}
-Business Impact: ${data.businessImpact || "Not provided"}
-User Impact: ${data.userImpact || "Not provided"}
-Urgency: ${data.urgency || "Not provided"}
-Priority: ${data.priority || "Not provided"}
-Assignment Group: ${data.assignmentGroup || "Not provided"}
-Assigned To: ${data.assignedTo || "Not provided"}
-Configuration Item: ${data.configurationItem || "Not provided"}
-
-Short Description:
-${data.shortDescription || "Not provided"}
-
-Detailed Description:
-${data.detailedDescription || "Not provided"}
-
-Work Notes:
-${data.workNotes || "Not provided"}
-
-Resolution Code:
-${data.resolutionCode || "Not provided"}
-
-Close Notes:
-${data.closeNotes || "Not provided"}`;
 }
 
 function downloadTicket() {
-  const text = buildFullTicketDraft();
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const ticket = elements.ticketOutput.value.trim() || buildGeneratedTicket(getFormData(), extractSections(getValue("rawNotes")));
+  const blob = new Blob([ticket], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
+  const caller = getValue("openedFor") || getValue("callerName") || "incident";
+  const safeCaller = caller.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+
   link.href = url;
-  link.download = `incident-ticket-${stamp}.txt`;
+  link.download = `${safeCaller || "incident"}-ticket-${stamp}.txt`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -1336,136 +1473,200 @@ function downloadTicket() {
   showToast("Ticket draft downloaded.");
 }
 
-function buildShortDescriptionFromScratchpad() {
-  const scratchpad = $("callScratchpad").value.trim();
-  if (!scratchpad) {
-    showToast("Add call notes in the scratchpad first.");
+function saveDraft() {
+  const data = getFormData();
+  const existingDrafts = getDrafts();
+  const draft = {
+    id: window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    createdAt: new Date().toISOString(),
+    data
+  };
+
+  const updatedDrafts = [draft, ...existingDrafts].slice(0, 20);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDrafts));
+  setSaveStatus("Saved");
+  renderDrafts();
+  showToast("Draft saved in this browser.");
+}
+
+function getDrafts() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function renderDrafts() {
+  const drafts = getDrafts();
+
+  if (!drafts.length) {
+    elements.draftList.className = "draft-list empty";
+    elements.draftList.innerHTML = "No saved drafts yet.";
     return;
   }
 
-  const firstLine = scratchpad.split(/\n+/).map((line) => line.trim()).find(Boolean) || scratchpad;
-  const category = $("category").value;
-  const subcategory = $("subcategory").value;
-  const cleanLine = firstLine.replace(/^(issue|problem|user says|customer says)[:\-\s]*/i, "");
-  const prefix = subcategory ? `${subcategory} - ` : category ? `${category} - ` : "";
-  $("shortDescription").value = `${prefix}${cleanLine}`.slice(0, 160);
-  showToast("Short description built from scratchpad.");
+  elements.draftList.className = "draft-list";
+  elements.draftList.innerHTML = drafts
+    .map((draft) => {
+      const data = draft.data || {};
+      const title = data.shortDescription || data.openedFor || data.callerName || data.service || "Untitled incident";
+      const created = new Date(draft.createdAt).toLocaleString();
+      const issuePreview = (data.rawNotes || data.workNotes || "No notes saved.").slice(0, 110);
+
+      return `
+        <article class="draft-card">
+          <div>
+            <h3>${escapeHtml(title)}</h3>
+            <p class="draft-meta">${escapeHtml(created)} - ${escapeHtml(data.state || "New")} - ${escapeHtml(data.priority || "No priority")}</p>
+            <p class="draft-meta">${escapeHtml(issuePreview)}${issuePreview.length >= 110 ? "..." : ""}</p>
+          </div>
+          <div class="draft-actions">
+            <button type="button" data-action="load" data-id="${draft.id}">Load</button>
+            <button type="button" class="danger-text" data-action="delete" data-id="${draft.id}">Delete</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
-function appendScratchpadToWorkNotes() {
-  const scratchpad = $("callScratchpad").value.trim();
-  if (!scratchpad) {
-    showToast("Add call notes in the scratchpad first.");
-    return;
+function handleDraftClick(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+
+  const { action, id } = button.dataset;
+  const drafts = getDrafts();
+  const draft = drafts.find((item) => item.id === id);
+
+  if (action === "load" && draft) {
+    setFormData(draft.data);
+    setSaveStatus("Loaded");
+    showToast("Draft loaded.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const workNotes = $("workNotes");
-  const current = workNotes.value.trim() || WORK_NOTES_TEMPLATE;
-  const addition = `\n\nCall Scratchpad Notes:\n${scratchpad}`;
-  workNotes.value = `${current}${addition}`.slice(0, 4000);
-  updateCounter("workNotes", "workCounter");
-  showToast("Scratchpad added to work notes.");
-}
-
-function resolveIncident() {
-  $("state").value = "Resolved";
-  activateTab("resolution");
-
-  const workNotes = $("workNotes").value;
-  const resolutionMatch = workNotes.match(/Resolution:\s*([\s\S]*?)(?:\n\s*Reason for Escalation:|$)/i);
-  const resolutionText = resolutionMatch ? resolutionMatch[1].trim() : "";
-
-  if (resolutionText && !$("closeNotes").value.trim()) {
-    $("closeNotes").value = resolutionText;
+  if (action === "delete") {
+    const updatedDrafts = drafts.filter((item) => item.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDrafts));
+    renderDrafts();
+    setSaveStatus("Draft deleted");
   }
-
-  showToast("State changed to Resolved. Review Resolution Information before final submit.");
 }
 
-function submitIncident() {
-  if (!validateRequiredFields()) return;
-  saveDraft();
-  showToast("Static app only: ticket draft saved locally. Copy fields into your ticketing system.");
+function deleteAllDrafts() {
+  if (!getDrafts().length) return;
+  const confirmed = confirm("Delete all saved drafts from this browser?");
+  if (!confirmed) return;
+
+  localStorage.removeItem(STORAGE_KEY);
+  renderDrafts();
+  setSaveStatus("Drafts deleted");
+  showToast("Saved drafts deleted.");
 }
 
-function activateTab(tabId) {
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.tab === tabId);
+function clearForm() {
+  const confirmed = confirm("Clear this incident and start a new call?");
+  if (!confirmed) return;
+
+  FORM_FIELD_IDS.forEach((field) => {
+    const element = $(field);
+    if (element && !element.disabled) {
+      element.value = "";
+    }
   });
-  document.querySelectorAll(".tab-panel").forEach((panel) => {
-    panel.classList.toggle("active", panel.id === tabId);
-  });
+
+  elements.ticketOutput.value = "";
+  applyDefaults();
+  setSaveStatus("Not saved");
+  showToast("New call started.");
 }
 
-function updateCounters() {
-  updateCounter("detailedDescription", "detailedCounter");
-  updateCounter("workNotes", "workCounter");
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
-function wireEvents() {
-  $("category").addEventListener("change", () => populateSubcategories());
-  $("businessImpact").addEventListener("change", calculatePriority);
-  $("userImpact").addEventListener("change", calculatePriority);
-  $("urgency").addEventListener("change", calculatePriority);
-
-  $("detailedDescription").addEventListener("input", () => updateCounter("detailedDescription", "detailedCounter"));
-  $("workNotes").addEventListener("input", () => updateCounter("workNotes", "workCounter"));
-
-  $("resetDetailedBtn").addEventListener("click", () => {
-    $("detailedDescription").value = DETAILED_TEMPLATE;
-    updateCounter("detailedDescription", "detailedCounter");
-    showToast("Detailed description template restored.");
-  });
-
-  $("resetWorkBtn").addEventListener("click", () => {
-    $("workNotes").value = WORK_NOTES_TEMPLATE;
-    updateCounter("workNotes", "workCounter");
-    showToast("Work notes template restored.");
-  });
-
-  $("copyDetailedBtn").addEventListener("click", () => copyText($("detailedDescription").value, "Detailed description copied."));
-  $("copyWorkBtn").addEventListener("click", () => copyText($("workNotes").value, "Work notes copied."));
-  $("copyAllBtn").addEventListener("click", () => copyText(buildFullTicketDraft(), "Full ticket draft copied."));
-  $("downloadBtn").addEventListener("click", downloadTicket);
-  $("buildShortBtn").addEventListener("click", buildShortDescriptionFromScratchpad);
-  $("appendWorkBtn").addEventListener("click", appendScratchpadToWorkNotes);
-  $("clearBtn").addEventListener("click", resetForm);
-  $("topSaveBtn").addEventListener("click", saveDraft);
-  $("submitBtn").addEventListener("click", submitIncident);
-  $("resolveBtn").addEventListener("click", resolveIncident);
-
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => activateTab(tab.dataset.tab));
-  });
-
-  FORM_FIELD_IDS.forEach((id) => {
-    const element = $(id);
-    if (!element) return;
-    element.addEventListener("input", () => {
-      if ($("saveStatus")) $("saveStatus").textContent = "Unsaved changes";
-    });
-    element.addEventListener("change", () => {
-      if ($("saveStatus")) $("saveStatus").textContent = "Unsaved changes";
-    });
-  });
-}
-
-function initialize() {
-  populateCategories();
+function applyDefaults() {
+  populateCategories("Keepstock - Seaga - PC/Data");
   $("channel").value = "Phone";
   $("state").value = "New";
   $("businessImpact").value = "Minor";
   $("userImpact").value = "Single User: 1 user";
   $("urgency").value = "Low";
+  $("assignmentGroup").value = "T1 KeepStock";
+  $("assignedTo").value = "Clowie Moscare";
+  $("knowledgeScope").value = "Knowledge & Catalog (All)";
   calculatePriority();
   setDefaultTemplates();
+}
+
+function wireEvents() {
+  elements.generateBtn.addEventListener("click", generateTicket);
+  elements.saveBtn.addEventListener("click", saveDraft);
+  elements.submitBtn.addEventListener("click", submitDraft);
+  elements.resolveBtn.addEventListener("click", resolveIncident);
+  elements.clearBtn.addEventListener("click", clearForm);
+  elements.copyBtn.addEventListener("click", () => copyText(elements.ticketOutput.value, "Generated ticket copied."));
+  elements.copyWorkFromOutputBtn.addEventListener("click", () => copyText(getValue("workNotes"), "Work notes copied."));
+  elements.copyDetailedFromOutputBtn.addEventListener("click", () => copyText(getValue("detailedDescription"), "Detailed description copied."));
+  elements.downloadBtn.addEventListener("click", downloadTicket);
+  elements.deleteAllDraftsBtn.addEventListener("click", deleteAllDrafts);
+  elements.draftList.addEventListener("click", handleDraftClick);
+
+  elements.resetDetailedBtn.addEventListener("click", () => {
+    $("detailedDescription").value = detailedTemplate(getFormData(), extractSections(getValue("rawNotes")));
+    updateCounter("detailedDescription", "detailedCounter");
+    setSaveStatus("Unsaved changes");
+    showToast("Detailed description template reset.");
+  });
+
+  elements.resetWorkBtn.addEventListener("click", () => {
+    $("workNotes").value = WORK_NOTES_TEMPLATE;
+    updateCounter("workNotes", "workCounter");
+    setSaveStatus("Unsaved changes");
+    showToast("Work notes template reset.");
+  });
+
+  elements.copyDetailedBtn.addEventListener("click", () => copyText(getValue("detailedDescription"), "Detailed description copied."));
+  elements.copyWorkBtn.addEventListener("click", () => copyText(getValue("workNotes"), "Work notes copied."));
+
+  $("category").addEventListener("change", () => {
+    populateSubcategories();
+    setSaveStatus("Unsaved changes");
+  });
+
+  ["businessImpact", "userImpact", "urgency"].forEach((id) => {
+    $(id).addEventListener("change", () => {
+      calculatePriority();
+      setSaveStatus("Unsaved changes");
+    });
+  });
+
+  $("detailedDescription").addEventListener("input", () => updateCounter("detailedDescription", "detailedCounter"));
+  $("workNotes").addEventListener("input", () => updateCounter("workNotes", "workCounter"));
+
+  FORM_FIELD_IDS.forEach((field) => {
+    const element = $(field);
+    if (!element) return;
+    element.addEventListener("input", () => setSaveStatus("Unsaved changes"));
+    element.addEventListener("change", () => setSaveStatus("Unsaved changes"));
+  });
+}
+
+function initialize() {
+  applyDefaults();
   wireEvents();
-  loadDraft();
+  renderDrafts();
   updateCounters();
 }
 
 initialize();
 
-</script>
+  </script>
 </body>
 </html>
