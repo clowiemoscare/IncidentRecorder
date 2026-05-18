@@ -827,6 +827,98 @@ Resolution:
 
 Reason for Escalation: [Only if escalated to T2]`;
 
+const DETAIL_FIELD_LABELS = [
+  "Slack Thread URL",
+  "Thread URL",
+  "Parent/PRB Template",
+  "Parent PRB Template",
+  "Parent/PRB",
+  "Parent PRB",
+  "Parent Incident",
+  "Parent Ticket",
+  "PRB",
+  "Crib/Program id",
+  "Crib Program id",
+  "Crib #",
+  "Crib Number",
+  "Crib No",
+  "Crib id",
+  "Program id",
+  "Program #",
+  "Program name",
+  "Company name",
+  "Customer name",
+  "Account name",
+  "Acct #",
+  "Acct#",
+  "Acct Number",
+  "Acct No",
+  "Account #",
+  "Account#",
+  "Account number",
+  "Account No",
+  "Site ID",
+  "Site #",
+  "Site Number",
+  "Software Version",
+  "Software Ver",
+  "SW Version",
+  "Device ID (Affected)",
+  "Device ID",
+  "Device/Asset",
+  "Asset ID",
+  "Machine ID",
+  "Machine Serial Number(s)",
+  "Machine Serial Numbers",
+  "Machine Serial Number",
+  "Machine Serial",
+  "Machine SN",
+  "Serial Number",
+  "Serial #",
+  "S/N",
+  "SN",
+  "Cradlepoint Serial Number",
+  "Cradlepoint Serial",
+  "Cradlepoint SN",
+  "IMEI",
+  "Cellular Carrier",
+  "Carrier",
+  "Badge Reader",
+  "Reader",
+  "Phone Model",
+  "Mobile Device Model",
+  "Phone Software Version",
+  "Phone SW Version",
+  "Phone OS",
+  "iOS Version",
+  "Android Version",
+  "Application Version",
+  "App Version",
+  "Application",
+  "Time issue occurred",
+  "Time occurred",
+  "Issue time",
+  "Model"
+];
+
+function escapedDetailLabels() {
+  return DETAIL_FIELD_LABELS
+    .slice()
+    .sort((a, b) => b.length - a.length)
+    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+}
+
+function labelBoundaryRegex(flags = "gi") {
+  return new RegExp(`\\b(${escapedDetailLabels().join("|")})\\s*[:#=\\-]`, flags);
+}
+
+function prepareTextWithFieldBoundaries(rawNotes) {
+  return String(rawNotes || "")
+    .replace(/[\u2022\u00b7]/g, "\n")
+    .replace(labelBoundaryRegex("gi"), "\n$1:");
+}
+
+
 function detailedTemplate(data = {}, sections = {}) {
   const extractedDetails = sections.details || extractDetailedDescriptionFields(data, sections, data.rawNotes || "");
   const details = sanitizeDetailedDetails(extractedDetails, data);
@@ -1064,10 +1156,15 @@ function setDefaultTemplates() {
 }
 
 function splitNotes(rawNotes) {
-  return String(rawNotes || "")
-    .replace(/[\u2022\u00b7]/g, "\n")
+  const actionVerbPattern = "(?:check(?:ed)?|verify|verified|confirm|confirmed|locate|located|unplug|unplugged|plug|plugged|press|pressed|reset|restart|restarted|reboot|rebooted|sync|synced|power\\s*cycle|cycled|connect|connected|disconnect|disconnected|reconnect|reconnected|clear|cleared|test|tested|run|ran|open|opened|close|closed|try|tried|attempt|attempted|review|reviewed|validate|validated)";
+  const actionCommaRegex = new RegExp(`,\\s*(?=${actionVerbPattern}\\b)`, "gi");
+  const actionAndRegex = new RegExp(`\\s+and\\s+(?=${actionVerbPattern}\\b)`, "gi");
+
+  return prepareTextWithFieldBoundaries(rawNotes)
+    .replace(actionCommaRegex, "\n")
+    .replace(actionAndRegex, "\n")
     .split(/\n|\r|;/)
-    .flatMap((line) => line.split(/(?<=[.!?])\s+/))
+    .flatMap((line) => line.split(/(?<=[.!?])\s+(?=[A-Z]|[a-z]{2,}\s)/))
     .map((line) => normalizeLine(line))
     .filter(Boolean);
 }
@@ -1309,20 +1406,50 @@ function capitalizeSentence(text) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function formatTroubleshootingLine(line) {
+  let value = capitalizeSentence(line);
+  const replacements = [
+    [/^Confirm\b/i, "Confirmed"],
+    [/^Verify\b/i, "Verified"],
+    [/^Check\b/i, "Checked"],
+    [/^Locate\b/i, "Located"],
+    [/^Unplug\b/i, "Unplugged"],
+    [/^Plug\b/i, "Plugged"],
+    [/^Press\b/i, "Pressed"],
+    [/^Restart\b/i, "Restarted"],
+    [/^Reboot\b/i, "Rebooted"],
+    [/^Connect\b/i, "Connected"],
+    [/^Disconnect\b/i, "Disconnected"],
+    [/^Reconnect\b/i, "Reconnected"],
+    [/^Clear\b/i, "Cleared"],
+    [/^Test\b/i, "Tested"],
+    [/^Open\b/i, "Opened"],
+    [/^Close\b/i, "Closed"],
+    [/^Review\b/i, "Reviewed"],
+    [/^Validate\b/i, "Validated"],
+    [/^Sync\b/i, "Synced"]
+  ];
+
+  replacements.forEach(([pattern, replacement]) => {
+    value = value.replace(pattern, replacement);
+  });
+  return value;
+}
+
 function bulletList(lines) {
   const cleaned = uniqueLines(lines);
   if (!cleaned.length) {
     return "- Not provided.";
   }
-  return cleaned.map((line) => `- ${capitalizeSentence(line)}`).join("\n");
+  return cleaned.map((line) => `- ${formatTroubleshootingLine(line)}`).join("\n");
 }
 
 function cleanIssueText(text) {
   return capitalizeSentence(
     String(text || "")
       .replace(/^(issue|problem|error)[:\-\s]*/i, "")
-      .replace(/^user\s+(says|said|reports|reported|states|stated)\s+(that\s+)?/i, "")
-      .replace(/^customer\s+(says|said|reports|reported|states|stated)\s+(that\s+)?/i, "")
+      .replace(/^(?:user|customer|caller|rep|representative)\s+(?:says|said|reports|reported|states|stated)\s+(?:that\s+)?/i, "")
+      .replace(/^(?:user|customer|caller|rep|representative)\s+(?=(?:cannot|can't|unable|not able|needs|has|is|was|keeps|cannot|can't))/i, "")
   );
 }
 
@@ -1339,86 +1466,16 @@ function findTimeIssueOccurred(lines) {
 }
 
 function cleanExtractedValue(value) {
+  const nextLabelRegex = new RegExp(`\\s+(?:${escapedDetailLabels().join("|")})\\s*[:#=\\-].*$`, "i");
   return normalizeLine(value)
     .replace(/^[#:=\-\s]+/, "")
-    .replace(/\s+(?:Slack Thread URL|Parent\/PRB Template|Parent PRB|Crib\/Program id|Crib Program id|Crib id|Program id|Program name|Company name|Customer name|Site ID|Site #|Acct #|Account #|Account Number|Software Version|Device ID|Device ID \(Affected\)|Machine Serial Number\(s\)|Machine Serial Number|Cradlepoint Serial Number|IMEI|Carrier|Badge Reader|Phone Model|Phone Software Version|Application Version|App Version|Application|Time issue occurred)\s*[:#=\-].*$/i, "")
+    .replace(nextLabelRegex, "")
     .replace(/[;,]+$/, "")
     .trim();
 }
 
 function getFieldExtractionLines(rawNotes) {
-  const labels = [
-    "Slack Thread URL",
-    "Thread URL",
-    "Parent/PRB Template",
-    "Parent PRB Template",
-    "Parent/PRB",
-    "Parent PRB",
-    "Parent Incident",
-    "Parent Ticket",
-    "PRB",
-    "Crib/Program id",
-    "Crib Program id",
-    "Crib id",
-    "Program id",
-    "Program #",
-    "Program name",
-    "Company name",
-    "Customer name",
-    "Account name",
-    "Acct #",
-    "Account #",
-    "Account number",
-    "Acct number",
-    "Site ID",
-    "Site #",
-    "Software Version",
-    "SW Version",
-    "Device ID (Affected)",
-    "Device ID",
-    "Device/Asset",
-    "Asset ID",
-    "Machine ID",
-    "Machine Serial Number(s)",
-    "Machine Serial Numbers",
-    "Machine Serial Number",
-    "Machine Serial",
-    "Machine SN",
-    "Serial Number",
-    "Serial #",
-    "S/N",
-    "SN",
-    "Cradlepoint Serial Number",
-    "Cradlepoint Serial",
-    "Cradlepoint SN",
-    "IMEI",
-    "Cellular Carrier",
-    "Carrier",
-    "Badge Reader",
-    "Reader",
-    "Phone Model",
-    "Mobile Device Model",
-    "Phone Software Version",
-    "Phone SW Version",
-    "Phone OS",
-    "iOS Version",
-    "Android Version",
-    "Application Version",
-    "App Version",
-    "Application",
-    "Time issue occurred",
-    "Time occurred",
-    "Issue time",
-    "Model"
-  ];
-
-  const escapedLabels = labels
-    .sort((a, b) => b.length - a.length)
-    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const labelRegex = new RegExp(`\\b(${escapedLabels.join("|")})\\s*[:#=\\-]`, "gi");
-  const prepared = String(rawNotes || "").replace(labelRegex, "\n$1:");
-
-  return prepared
+  return prepareTextWithFieldBoundaries(rawNotes)
     .split(/\n|\r|;/)
     .map((line) => normalizeLine(line))
     .filter(Boolean);
@@ -1453,7 +1510,8 @@ function extractDetailedDescriptionFields(data = {}, sections = {}, rawNotes = "
       /^(?:parent\s*\/\s*prb\s*template|parent\s*prb\s*template|parent\s*\/\s*prb|parent\s*prb|parent\s*(?:incident|ticket)|prb)\s*[:#=\-]\s*(.+)$/i
     ],
     cribProgramId: [
-      /^(?:crib\s*\/\s*program\s*id|crib\s*program\s*id|crib\s*id|program\s*id|program\s*#)\s*[:#=\-]\s*(.+)$/i
+      /^(?:crib\s*\/\s*program\s*id|crib\s*program\s*id|crib\s*(?:id|#|number|no\.?))\s*[:#=\-]?\s*(.+)$/i,
+      /^(?:program\s*(?:id|#))\s*[:#=\-]?\s*(.+)$/i
     ],
     programName: [
       /^program\s*name\s*[:#=\-]\s*(.+)$/i,
@@ -1463,7 +1521,7 @@ function extractDetailedDescriptionFields(data = {}, sections = {}, rawNotes = "
       /^(?:company\s*name|customer\s*name|company|customer|account\s*name)\s*[:#=\-]\s*(.+)$/i
     ],
     siteId: [
-      /^(?:site\s*id|site\s*#|site)\s*[:#=\-]\s*(.+)$/i
+      /^(?:site\s*id|site\s*#|site\s*number|site)\s*[:#=\-]?\s*(.+)$/i
     ],
     accountNumber: [
       /^(?:acct\.?|account)\s*(?:#|number|no\.?)\s*[:#=\-]?\s*(.+)$/i,
@@ -1556,6 +1614,10 @@ function extractDetailedDescriptionFields(data = {}, sections = {}, rawNotes = "
     details.application = displayValue(data.applicationService || data.service, "");
   }
 
+  Object.keys(details).forEach((key) => {
+    details[key] = cleanExtractedValue(details[key]);
+  });
+
   return sanitizeDetailedDetails(details, data);
 }
 
@@ -1564,15 +1626,9 @@ function lineMatchesAny(line, patterns) {
 }
 
 function isMetadataLine(line) {
-  return [
-    /^\s*(?:slack\s*(?:thread\s*)?url|thread\s*url)\s*[:#=\-]/i,
-    /^\s*(?:parent\/prb\s*template|parent\s*prb\s*template|parent\/prb|parent\s*prb|parent\s*(?:incident|ticket)|prb)\s*[:#=\-]/i,
-    /^\s*(?:crib\/program\s*id|crib\s*program\s*id|crib\s*id|program\s*id|program\s*name|company\s*name|customer\s*name|company|customer|site\s*id|site)\s*[:#=\-]/i,
-    /^\s*(?:acct|account)\s*(?:#|number|no\.?|[:#=\-])/i,
-    /^\s*(?:software\s*version|software\s*ver|sw\s*version|device\s*id|device\/asset|asset\s*id|machine\s*id|machine\s*serial|machine\s*sn|serial\s*(?:number|#)?|cradlepoint|imei|cellular\s*carrier|carrier)\s*[:#=\-]/i,
-    /^\s*(?:badge\s*reader|reader|model|phone\s*model|mobile\s*device\s*model|phone\s*software\s*version|phone\s*sw\s*version|phone\s*os|ios\s*version|android\s*version|application\s*version|app\s*version|application|app|time\s*issue\s*occurred|time\s*occurred|issue\s*time)\s*[:#=\-]/i,
-    /\bhttps?:\/\/[^\s]*slack[^\s]*/i
-  ].some((pattern) => pattern.test(line));
+  const value = normalizeLine(line);
+  if (!value) return false;
+  return labelBoundaryRegex("i").test(value) || /\bhttps?:\/\/[^\s]*slack[^\s]*/i.test(value);
 }
 
 function isContextOnlyLine(line) {
@@ -1586,14 +1642,13 @@ function isContextOnlyLine(line) {
 function extractSections(rawNotes) {
   const lines = splitNotes(rawNotes);
   const labeled = parseLabeledSections(rawNotes);
+  const nonMetadataLines = lines.filter((line) => !isMetadataLine(line));
 
   const issuePatterns = [
-    /user\s+(says|said|reports|reported|states|stated)/i,
-    /customer\s+(says|said|reports|reported|states|stated)/i,
-    /caller\s+(says|said|reports|reported|states|stated)/i,
+    /(?:user|customer|caller|rep|representative)\s+(?:says|said|reports|reported|states|stated|cannot|can't|unable|not able)/i,
     /issue|problem|error/i,
     /cannot|can't|unable|not able/i,
-    /not working|keeps|stuck|failed|failure|down/i
+    /not working|keeps|stuck|failed|failure|down|will not|won't/i
   ];
 
   const impactPatterns = [
@@ -1604,31 +1659,30 @@ function extractSections(rawNotes) {
   ];
 
   const troubleshootingPatterns = [
-    /checked|verified|confirmed|reviewed|validated|looked up|researched/i,
-    /had user|asked user|walked user|guided user|advised user|instructed user/i,
-    /restart|restarted|reboot|rebooted|power cycle|power cycled|cycled power/i,
-    /clear|cleared|reset|removed|deleted|reinstalled|installed|updated|refreshed|flushed/i,
-    /tested|ran|opened|closed|logged|signed|launched|retried|tried|attempted/i,
-    /enabled|disabled|connected|disconnected|reconnected|paired|unpaired/i,
-    /ping|ipconfig|nslookup|tracert|lookup|trace|network test/i,
-    /checked logs|reviewed logs|validated network|verified account|checked account/i,
-    /unlocked|locked|created|changed|assigned|added|provisioned|registered|mapped|synced|resynced/i,
-    /replaced|reseated|plugged|unplugged|swapped|configured|reconfigured/i,
-    /sent|submitted|opened case|created case|contacted|called|emailed/i
+    /\b(check(?:ed)?|verify|verified|confirm|confirmed|review|reviewed|validate|validated|looked up|research(?:ed)?)\b/i,
+    /\b(had user|asked user|walked user|guided user|advised user|instructed user)\b/i,
+    /\b(restart|restarted|reboot|rebooted|power cycle|power cycled|cycled power|reset)\b/i,
+    /\b(clear|cleared|remove|removed|delete|deleted|reinstall(?:ed)?|install(?:ed)?|update(?:d)?|refresh(?:ed)?|flush(?:ed)?)\b/i,
+    /\b(test(?:ed)?|run|ran|open(?:ed)?|close(?:d)?|log(?:ged)?|sign(?:ed)?|launch(?:ed)?|retry|retried|try|tried|attempt(?:ed)?)\b/i,
+    /\b(enable(?:d)?|disable(?:d)?|connect(?:ed)?|disconnect(?:ed)?|reconnect(?:ed)?|pair(?:ed)?|unpair(?:ed)?)\b/i,
+    /\b(ping|ipconfig|nslookup|tracert|lookup|trace|network test)\b/i,
+    /\b(unlock(?:ed)?|lock(?:ed)?|create(?:d)?|change(?:d)?|assign(?:ed)?|add(?:ed)?|provision(?:ed)?|register(?:ed)?|map(?:ped)?|sync|synced|resync(?:ed)?)\b/i,
+    /\b(replace(?:d)?|reseat(?:ed)?|plug(?:ged)?|unplug(?:ged)?|swap(?:ped)?|configure(?:d)?|reconfigure(?:d)?|press(?:ed)?|locate(?:d)?)\b/i,
+    /\b(sent|submitted|opened case|created case|contacted|called|emailed)\b/i
   ];
 
   const findingPatterns = [
-    /found|noticed|observed|confirmed|verified|validated/i,
-    /active|inactive|locked|disabled|expired/i,
-    /same issue|still|error|working|not working/i,
-    /successful|failed|failure/i
+    /\b(found|noticed|observed|confirmed|verified|validated)\b/i,
+    /\b(active|inactive|locked|disabled|expired|offline|online)\b/i,
+    /\b(same issue|still|error|working|not working)\b/i,
+    /\b(successful|failed|failure)\b/i
   ];
 
   const resolutionPatterns = [
-    /resolved|fixed|restored|completed/i,
-    /working now|now working|able to|successfully|success/i,
+    /\b(resolved|fixed|restored|completed)\b/i,
+    /\b(working now|now working|able to|successfully|success|successful)\b/i,
     /confirmed.*(working|resolved|connected|syncing|login|logged|dispensing|fixed|restored|able)/i,
-    /(?:user|customer|caller) confirmed.*(working|resolved|connected|syncing|login|logged|dispensing|fixed|restored|able)/i,
+    /(?:user|customer|caller|rep) confirmed.*(working|resolved|connected|syncing|login|logged|dispensing|fixed|restored|able)/i,
     /no further action|no further issues/i
   ];
 
@@ -1640,9 +1694,9 @@ function extractSections(rawNotes) {
     /unable to resolve|not resolved|requires further/i
   ];
 
-  const issueLine = labeled.issue || findFirstMatch(lines.filter((line) => !isMetadataLine(line)), issuePatterns) || lines.find((line) => !isMetadataLine(line)) || "Not provided.";
-  const impactLine = findFirstMatch(lines.filter((line) => !isMetadataLine(line)), impactPatterns) || "Not provided.";
-  const resolutionLine = labeled.resolution || findLastMatch(lines.filter((line) => !isMetadataLine(line)), resolutionPatterns) || "Not provided.";
+  const issueLine = labeled.issue || findFirstMatch(nonMetadataLines, issuePatterns) || nonMetadataLines[0] || "Not provided.";
+  const impactLine = findFirstMatch(nonMetadataLines, impactPatterns) || "Not provided.";
+  const resolutionLine = labeled.resolution || findLastMatch(nonMetadataLines, resolutionPatterns) || "Not provided.";
   const escalationLine = labeled.escalationReason || findLastMatch(lines, escalationPatterns) || "";
   const issueIndex = lines.findIndex((line) => normalizeLine(line).toLowerCase() === normalizeLine(issueLine).toLowerCase());
   const resolutionIndex = lines.findIndex((line) => resolutionLine !== "Not provided." && normalizeLine(line).toLowerCase() === normalizeLine(resolutionLine).toLowerCase());
@@ -1667,6 +1721,7 @@ function extractSections(rawNotes) {
       if (escalationLine && normalized === normalizeLine(escalationLine).toLowerCase()) return false;
       if (isMetadataLine(line) || isContextOnlyLine(line)) return false;
       if (lineMatchesAny(line, escalationPatterns)) return false;
+      if (lineMatchesAny(line, resolutionPatterns)) return false;
       return true;
     });
   }
