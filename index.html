@@ -450,7 +450,7 @@ button.primary:hover {
     <div>
       <p class="eyebrow">IncidentRecorder</p>
       <h1>Call-to-ticket helper</h1>
-      <p class="subtitle">Version 1 style layout with the full incident fields, detailed description template, and work notes generator.</p>
+      <p class="subtitle">Version 1 style layout with full incident fields, detailed description extraction, and complete work notes generation.</p>
     </div>
   </header>
 
@@ -474,7 +474,7 @@ button.primary:hover {
           </div>
           <label class="full-width">
             Rough notes from the call
-            <textarea id="rawNotes" name="rawNotes" class="raw-notes" placeholder="Example: User reports Seaga PC/Data issue. Started around 9 AM. Verified machine is online. Checked badge reader and COM port. Restarted app. User confirmed machine is dispensing again."></textarea>
+            <textarea id="rawNotes" name="rawNotes" class="raw-notes" placeholder="Example: User reports Seaga PC/Data issue. Acct #: 123456. Program name: Main Crib. Company name: ACME. Device ID: VEND-01. Started around 9 AM. Verified machine is online. Checked badge reader and COM port. Restarted app. User confirmed machine is dispensing again."></textarea>
           </label>
           <div class="button-row">
             <button id="generateBtn" class="primary" type="button">Generate ticket from draft notes</button>
@@ -733,8 +733,9 @@ button.primary:hover {
         <h3>Quick note pattern</h3>
         <p>You can write short lines during the call. The app will organize them into Issue, Troubleshooting Steps, and Resolution.</p>
         <ul>
+          <li>Acct #: 123456; Program name: Main Crib; Company name: ACME.</li>
           <li>User reports unable to login to GCOM Mobile App.</li>
-          <li>Verified account is active.</li>
+          <li>Verified account is active and reset password.</li>
           <li>Cleared app cache and had user retry login.</li>
           <li>User confirmed login worked.</li>
         </ul>
@@ -889,39 +890,44 @@ Resolution:
 Reason for Escalation: [Only if escalated to T2]`;
 
 function detailedTemplate(data = {}, sections = {}) {
-  const device = displayValue(data.deviceAsset || data.configurationItem, "");
-  const application = displayValue(data.applicationService || data.service, "");
-  const timeIssueOccurred = displayValue(sections.timeIssueOccurred, "");
+  const details = {
+    ...extractDetailedDescriptionFields(data, sections, data.rawNotes || ""),
+    ...(sections.details || {})
+  };
+
+  const device = displayValue(details.deviceId || data.deviceAsset || data.configurationItem, "");
+  const application = displayValue(details.application || data.applicationService || data.service, "");
+  const timeIssueOccurred = displayValue(details.timeIssueOccurred || sections.timeIssueOccurred, "");
 
   return `Template Header (DO NOT REMOVE)
 **Delete any unused sections below**
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-Slack Thread URL:
+Slack Thread URL: ${displayValue(details.slackThreadUrl, "")}
 
-Parent/PRB Template: [Update/add to section below with all required data from Parents/PRB's]
+Parent/PRB Template: ${displayValue(details.parentPrbTemplate, "") || "[Update/add to section below with all required data from Parents/PRB's]"}
 
-Crib/Program id:
-Program name:
-Company name:
-Site ID (If Applicable):
-Acct #:
+Crib/Program id: ${displayValue(details.cribProgramId, "")}
+Program name: ${displayValue(details.programName, "")}
+Company name: ${displayValue(details.companyName, "")}
+Site ID (If Applicable): ${displayValue(details.siteId, "")}
+Acct #: ${displayValue(details.accountNumber, "")}
 
 
-Software Version:
+Software Version: ${displayValue(details.softwareVersion, "")}
 Device ID (Affected): ${device}
-Machine Serial Number(s):
+Machine Serial Number(s): ${displayValue(details.machineSerialNumbers, "")}
 
-Cradlepoint Serial Number:
-IMEI:
-Carrier:
+Cradlepoint Serial Number: ${displayValue(details.cradlepointSerialNumber, "")}
+IMEI: ${displayValue(details.imei, "")}
+Carrier: ${displayValue(details.carrier, "")}
 
-Badge Reader:
-Model:
+Badge Reader: ${displayValue(details.badgeReader, "")}
+Model: ${displayValue(details.model, "")}
 
-Phone Model:
-Phone Software Version:
+Phone Model: ${displayValue(details.phoneModel, "")}
+Phone Software Version: ${displayValue(details.phoneSoftwareVersion, "")}
 Application: ${application}
-Application Version:
+Application Version: ${displayValue(details.applicationVersion, "")}
 Time issue occurred: ${timeIssueOccurred}`;
 }
 
@@ -956,6 +962,11 @@ function getValue(id) {
 
 function displayValue(value, fallback = "Not provided") {
   return value && String(value).trim() ? String(value).trim() : fallback;
+}
+
+function firstAvailable(...values) {
+  const value = values.find((item) => item !== undefined && item !== null && String(item).trim());
+  return value === undefined ? "" : String(value).trim();
 }
 
 function setSaveStatus(message) {
@@ -1114,6 +1125,185 @@ function parseLabeledSections(rawNotes) {
   return result;
 }
 
+function valueFromLine(line, patterns) {
+  for (const pattern of patterns) {
+    const match = String(line || "").match(pattern);
+    if (match && match[1]) {
+      return normalizeLine(match[1].replace(/[,;]+$/g, ""));
+    }
+  }
+  return "";
+}
+
+function isMostlyAccountNumber(value) {
+  const compact = String(value || "").replace(/\s+/g, "");
+  if (!compact) return false;
+  const digitCount = (compact.match(/\d/g) || []).length;
+  return digitCount >= 3 || /^[A-Z0-9-]{4,}$/i.test(compact);
+}
+
+function extractDetailedFields(rawNotes, lines = splitNotes(rawNotes)) {
+  const details = {};
+
+  const definitions = {
+    slackThreadUrl: [
+      /^slack\s*(?:thread\s*)?url\s*[:=\-]\s*(.+)$/i,
+      /\b(https?:\/\/[^\s]*slack[^\s]*)/i
+    ],
+    parentPrb: [
+      /^(?:parent\s*\/\s*prb\s*template|parent\s*\/\s*prb|parent|prb)\s*[:=\-]\s*(.+)$/i
+    ],
+    cribProgramId: [
+      /^(?:crib\s*\/\s*program\s*id|crib\s*id|program\s*id|program\s*#)\s*[:=\-]\s*(.+)$/i
+    ],
+    programName: [
+      /^program\s*name\s*[:=\-]\s*(.+)$/i,
+      /^program\s*[:=\-]\s*(.+)$/i
+    ],
+    companyName: [
+      /^(?:company\s*name|company|customer\s*name|customer|account\s*name)\s*[:=\-]\s*(.+)$/i
+    ],
+    siteId: [
+      /^(?:site\s*id|site\s*#|site)\s*[:=\-]\s*(.+)$/i
+    ],
+    accountNumber: [
+      /^(?:acct\.?|account)\s*(?:#|number|no\.?)\s*[:=\-]?\s*(.+)$/i,
+      /^acct\.?\s*[:=\-]\s*(.+)$/i
+    ],
+    softwareVersion: [
+      /^(?:software\s*version|sw\s*version|software\s*ver)\s*[:=\-]\s*(.+)$/i
+    ],
+    deviceId: [
+      /^(?:device\s*id\s*\(?affected\)?|device\s*id|device|machine\s*id|asset\s*id|asset)\s*[:=\-]\s*(.+)$/i
+    ],
+    machineSerialNumbers: [
+      /^(?:machine\s*)?(?:serial\s*number\(s\)|serial\s*numbers|serial\s*number|serial|s\/n|sn)\s*[:=\-]\s*(.+)$/i
+    ],
+    cradlepointSerialNumber: [
+      /^cradlepoint\s*(?:serial\s*number|serial|sn|s\/n)\s*[:=\-]\s*(.+)$/i
+    ],
+    imei: [
+      /^imei\s*[:=\-]\s*(.+)$/i
+    ],
+    carrier: [
+      /^carrier\s*[:=\-]\s*(.+)$/i
+    ],
+    badgeReader: [
+      /^badge\s*reader\s*[:=\-]\s*(.+)$/i
+    ],
+    model: [
+      /^(?:model|machine\s*model|device\s*model)\s*[:=\-]\s*(.+)$/i
+    ],
+    phoneModel: [
+      /^phone\s*model\s*[:=\-]\s*(.+)$/i,
+      /^mobile\s*model\s*[:=\-]\s*(.+)$/i
+    ],
+    phoneSoftwareVersion: [
+      /^phone\s*(?:software|os)\s*version\s*[:=\-]\s*(.+)$/i,
+      /^(?:ios|android)\s*version\s*[:=\-]\s*(.+)$/i
+    ],
+    application: [
+      /^(?:application|app)\s*[:=\-]\s*(.+)$/i
+    ],
+    applicationVersion: [
+      /^(?:application|app)\s*version\s*[:=\-]\s*(.+)$/i
+    ],
+    timeIssueOccurred: [
+      /^time\s*issue\s*occurred\s*[:=\-]\s*(.+)$/i,
+      /^issue\s*(?:started|began|occurred)\s*[:=\-]?\s*(.+)$/i
+    ]
+  };
+
+  lines.forEach((line) => {
+    const normalized = normalizeLine(line);
+    if (!normalized) return;
+
+    const accountMatch = normalized.match(/^account\s*[:=\-]\s*(.+)$/i);
+    if (accountMatch && accountMatch[1]) {
+      const accountValue = normalizeLine(accountMatch[1]);
+      if (isMostlyAccountNumber(accountValue)) {
+        details.accountNumber = details.accountNumber || accountValue;
+      } else {
+        details.accountName = details.accountName || accountValue;
+        details.companyName = details.companyName || accountValue;
+      }
+      return;
+    }
+
+    Object.entries(definitions).forEach(([key, patterns]) => {
+      if (details[key]) return;
+      const value = valueFromLine(normalized, patterns);
+      if (value) {
+        details[key] = value;
+      }
+    });
+  });
+
+  const fullText = String(rawNotes || "");
+  if (!details.slackThreadUrl) {
+    const slackMatch = fullText.match(/https?:\/\/[^\s]*slack[^\s]*/i);
+    if (slackMatch) details.slackThreadUrl = slackMatch[0];
+  }
+
+  if (!details.application) {
+    const knownAppMatch = fullText.match(/\b(GCOM Mobile App|GCOM|MobileCast|KeepStock|KS Web|KS Console)\b/i);
+    if (knownAppMatch) details.application = knownAppMatch[0];
+  }
+
+  return details;
+}
+
+function isDetailedInfoLine(line) {
+  const value = normalizeLine(line);
+  if (!value) return false;
+
+  return /^(?:slack\s*(?:thread\s*)?url|parent\s*\/\s*prb|parent|prb|crib\s*\/\s*program\s*id|crib\s*id|program\s*(?:id|name|#)?|company\s*(?:name)?|customer\s*(?:name)?|account\s*(?:name|#|number|no\.)?|acct\.?|site\s*(?:id|#)?|software\s*version|sw\s*version|device\s*id|device|machine\s*id|asset\s*id|asset|machine\s*serial|serial\s*number|serial|s\/n|sn|cradlepoint\s*serial|imei|carrier|badge\s*reader|model|machine\s*model|device\s*model|phone\s*model|mobile\s*model|phone\s*(?:software|os)\s*version|ios\s*version|android\s*version|application\s*version|app\s*version|application|app|time\s*issue\s*occurred)\s*[:=\-]/i.test(value);
+}
+
+function isTimeContextLine(line) {
+  return /^(?:started|began|occurred|happened)\s+(?:at|around|about|this|today|yesterday|on)|^since\s+/i.test(normalizeLine(line));
+}
+
+function isSameLine(a, b) {
+  return normalizeLine(a).toLowerCase() === normalizeLine(b).toLowerCase();
+}
+
+function isActionOrFindingLine(line, troubleshootingPatterns, findingPatterns) {
+  const value = normalizeLine(line);
+  return troubleshootingPatterns.some((pattern) => pattern.test(value)) || findingPatterns.some((pattern) => pattern.test(value));
+}
+
+function identifyTroubleshootingLines(lines, context) {
+  const {
+    issueLine,
+    resolutionLine,
+    escalationLine,
+    troubleshootingPatterns,
+    findingPatterns,
+    resolutionPatterns,
+    issuePatterns
+  } = context;
+
+  const issueIndex = lines.findIndex((line) => isSameLine(line, issueLine));
+  const resolutionIndex = lines.findIndex((line) => isSameLine(line, resolutionLine));
+
+  return uniqueLines(lines.filter((line, index) => {
+    const value = normalizeLine(line);
+    if (!value) return false;
+    if (isSameLine(value, issueLine) || isSameLine(value, resolutionLine) || isSameLine(value, escalationLine)) return false;
+    if (isDetailedInfoLine(value) || isTimeContextLine(value)) return false;
+    if (resolutionPatterns.some((pattern) => pattern.test(value))) return false;
+
+    const isActionOrFinding = isActionOrFindingLine(value, troubleshootingPatterns, findingPatterns);
+    if (isActionOrFinding) return true;
+
+    const appearsBetweenIssueAndResolution = issueIndex >= 0 && index > issueIndex && (resolutionIndex < 0 || index < resolutionIndex);
+    const looksLikeOnlyIssue = issuePatterns.some((pattern) => pattern.test(value)) && !isActionOrFinding;
+
+    return appearsBetweenIssueAndResolution && !looksLikeOnlyIssue;
+  }));
+}
+
 function findFirstMatch(lines, patterns) {
   return lines.find((line) => patterns.some((pattern) => pattern.test(line))) || "";
 }
@@ -1181,6 +1371,137 @@ function findTimeIssueOccurred(lines) {
   return match ? capitalizeSentence(match) : "";
 }
 
+function cleanExtractedValue(value) {
+  return normalizeLine(value)
+    .replace(/^[#:=\-\s]+/, "")
+    .replace(/\s+(?:Slack Thread URL|Parent\/PRB Template|Parent PRB|Crib\/Program id|Crib Program id|Program name|Company name|Site ID|Acct #|Account #|Account Number|Software Version|Device ID|Machine Serial Number|Cradlepoint Serial Number|IMEI|Carrier|Badge Reader|Phone Model|Phone Software Version|Application Version|Application|Time issue occurred)\s*[:#=\-].*$/i, "")
+    .replace(/[;,]+$/, "")
+    .trim();
+}
+
+function extractFirstPattern(text, patterns) {
+  const source = String(text || "");
+
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (match && match[1]) {
+      const value = cleanExtractedValue(match[1]);
+      if (value && !/^(is|was|are|were|active|inactive|locked|unlocked|working|not working)$/i.test(value)) {
+        return value;
+      }
+    }
+  }
+
+  return "";
+}
+
+function extractDetailedDescriptionFields(data = {}, sections = {}, rawNotes = "") {
+  const text = String(rawNotes || data.rawNotes || "");
+  const lines = splitNotes(text);
+  const details = {
+    slackThreadUrl: extractFirstPattern(text, [
+      /(?:slack\s*(?:thread\s*)?url|thread\s*url)\s*[:=\-]\s*(https?:\/\/\S+|\S+)/i,
+      /\b(https?:\/\/[^\s]*slack[^\s]*)/i
+    ]),
+    parentPrbTemplate: extractFirstPattern(text, [
+      /(?:parent\/prb\s*template|parent\s*prb\s*template|parent\/prb|parent\s*prb|parent\s*(?:incident|ticket)|prb)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    cribProgramId: extractFirstPattern(text, [
+      /(?:crib\/program\s*id|crib\s*program\s*id|crib\s*id|program\s*id)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    programName: extractFirstPattern(text, [
+      /(?:program\s*name)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    companyName: extractFirstPattern(text, [
+      /(?:company\s*name|customer\s*name)\s*[:#=\-]\s*([^\n;]+)/i,
+      /(?:company|customer)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    siteId: extractFirstPattern(text, [
+      /(?:site\s*id|site)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    accountNumber: extractFirstPattern(text, [
+      /(?:acct|account)\s*(?:#|number|no\.?)\s*[:#=\-]?\s*([A-Za-z0-9._\-]+)/i,
+      /(?:acct|account)\s*[:#=\-]\s*([A-Za-z0-9._\-]+)/i,
+      /(?:acct|account)\s+([A-Za-z0-9._\-]*\d[A-Za-z0-9._\-]*)/i
+    ]),
+    softwareVersion: extractFirstPattern(text, [
+      /(?:software\s*version|software\s*ver|sw\s*version)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    deviceId: extractFirstPattern(text, [
+      /(?:device\s*id|device\/asset|asset\s*id|machine\s*id)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    machineSerialNumbers: extractFirstPattern(text, [
+      /(?:machine\s*serial\s*number\(s\)|machine\s*serial\s*numbers|machine\s*serial\s*number|machine\s*serial|machine\s*sn|serial\s*number|serial\s*#|serial)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    cradlepointSerialNumber: extractFirstPattern(text, [
+      /(?:cradlepoint\s*serial\s*number|cradlepoint\s*serial|cradlepoint\s*sn)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    imei: extractFirstPattern(text, [
+      /\bimei\s*[:#=\-]\s*([0-9A-Za-z\-]+)/i,
+      /\bimei\s+([0-9]{8,20})\b/i
+    ]),
+    carrier: extractFirstPattern(text, [
+      /(?:cellular\s*carrier|carrier)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    badgeReader: extractFirstPattern(text, [
+      /(?:badge\s*reader|reader)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    model: extractFirstPattern(text, [
+      /(?:^|[\n;])\s*model\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    phoneModel: extractFirstPattern(text, [
+      /(?:phone\s*model|mobile\s*device\s*model)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    phoneSoftwareVersion: extractFirstPattern(text, [
+      /(?:phone\s*software\s*version|phone\s*sw\s*version|phone\s*os|ios\s*version|android\s*version)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    application: extractFirstPattern(text, [
+      /(?:application|app)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    applicationVersion: extractFirstPattern(text, [
+      /(?:application\s*version|app\s*version)\s*[:#=\-]\s*([^\n;]+)/i
+    ]),
+    timeIssueOccurred: extractFirstPattern(text, [
+      /(?:time\s*issue\s*occurred|time\s*occurred|issue\s*time)\s*[:#=\-]\s*([^\n;]+)/i,
+      /(?:started|began|occurred)\s+(?:at|around|about)\s+([^\n;.]+)/i,
+      /(?:since)\s+([^\n;.]+)/i
+    ]) || sections.timeIssueOccurred || findTimeIssueOccurred(lines)
+  };
+
+  if (!details.deviceId) {
+    details.deviceId = displayValue(data.deviceAsset || data.configurationItem, "");
+  }
+  if (!details.application) {
+    details.application = displayValue(data.applicationService || data.service, "");
+  }
+
+  return details;
+}
+
+function lineMatchesAny(line, patterns) {
+  return patterns.some((pattern) => pattern.test(line));
+}
+
+function isMetadataLine(line) {
+  return [
+    /^\s*(?:slack\s*(?:thread\s*)?url|thread\s*url)\s*[:#=\-]/i,
+    /^\s*(?:parent\/prb\s*template|parent\s*prb\s*template|parent\/prb|parent\s*prb|parent\s*(?:incident|ticket)|prb)\s*[:#=\-]/i,
+    /^\s*(?:crib\/program\s*id|crib\s*program\s*id|crib\s*id|program\s*id|program\s*name|company\s*name|customer\s*name|company|customer|site\s*id|site)\s*[:#=\-]/i,
+    /^\s*(?:acct|account)\s*(?:#|number|no\.?|[:#=\-])/i,
+    /^\s*(?:software\s*version|software\s*ver|sw\s*version|device\s*id|device\/asset|asset\s*id|machine\s*id|machine\s*serial|machine\s*sn|serial\s*(?:number|#)?|cradlepoint|imei|cellular\s*carrier|carrier)\s*[:#=\-]/i,
+    /^\s*(?:badge\s*reader|reader|model|phone\s*model|mobile\s*device\s*model|phone\s*software\s*version|phone\s*sw\s*version|phone\s*os|ios\s*version|android\s*version|application\s*version|app\s*version|application|app|time\s*issue\s*occurred|time\s*occurred|issue\s*time)\s*[:#=\-]/i,
+    /\bhttps?:\/\/[^\s]*slack[^\s]*/i
+  ].some((pattern) => pattern.test(line));
+}
+
+function isContextOnlyLine(line) {
+  return [
+    /^\s*(?:started|began|occurred)\s+(?:at|around|about|this|today|yesterday|on)\b/i,
+    /^\s*since\s+(?:\d|this|today|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,
+    /^\s*time\s*issue\s*occurred\b/i
+  ].some((pattern) => pattern.test(line));
+}
+
 function extractSections(rawNotes) {
   const lines = splitNotes(rawNotes);
   const labeled = parseLabeledSections(rawNotes);
@@ -1188,6 +1509,7 @@ function extractSections(rawNotes) {
   const issuePatterns = [
     /user\s+(says|said|reports|reported|states|stated)/i,
     /customer\s+(says|said|reports|reported|states|stated)/i,
+    /caller\s+(says|said|reports|reported|states|stated)/i,
     /issue|problem|error/i,
     /cannot|can't|unable|not able/i,
     /not working|keeps|stuck|failed|failure|down/i
@@ -1201,15 +1523,18 @@ function extractSections(rawNotes) {
   ];
 
   const troubleshootingPatterns = [
-    /checked|verified|confirmed|reviewed|validated/i,
-    /had user|asked user|walked user|guided user/i,
-    /restart|restarted|reboot|rebooted|power cycle|power cycled/i,
-    /clear|cleared|reset|removed|reinstalled|installed|updated|refreshed/i,
-    /tested|ran|opened|closed|logged|signed|launched/i,
-    /enabled|disabled|connected|disconnected|reconnected/i,
-    /ping|ipconfig|nslookup|tracert|lookup/i,
-    /checked logs|reviewed logs|validated network|verified account/i,
-    /badge reader|com port|scanner|cradlepoint|carrier|imei/i
+    /checked|verified|confirmed|reviewed|validated|looked up|researched/i,
+    /had user|asked user|walked user|guided user|advised user|instructed user/i,
+    /restart|restarted|reboot|rebooted|power cycle|power cycled|cycled power/i,
+    /clear|cleared|reset|removed|deleted|reinstalled|installed|updated|refreshed|flushed/i,
+    /tested|ran|opened|closed|logged|signed|launched|retried|tried|attempted/i,
+    /enabled|disabled|connected|disconnected|reconnected|paired|unpaired/i,
+    /ping|ipconfig|nslookup|tracert|lookup|trace|network test/i,
+    /checked logs|reviewed logs|validated network|verified account|checked account/i,
+    /badge reader|com port|scanner|cradlepoint|carrier|imei|serial|device id/i,
+    /unlocked|locked|created|changed|assigned|added|provisioned|registered|mapped|synced|resynced/i,
+    /replaced|reseated|plugged|unplugged|swapped|configured|reconfigured/i,
+    /sent|submitted|opened case|created case|contacted|called|emailed/i
   ];
 
   const findingPatterns = [
@@ -1223,6 +1548,7 @@ function extractSections(rawNotes) {
     /resolved|fixed|restored|completed/i,
     /working now|now working|able to|successfully|success/i,
     /confirmed.*(working|resolved|connected|syncing|login|logged|dispensing)/i,
+    /user confirmed|customer confirmed|caller confirmed/i,
     /no further action|no further issues/i
   ];
 
@@ -1234,14 +1560,40 @@ function extractSections(rawNotes) {
     /unable to resolve|not resolved|requires further/i
   ];
 
-  const issueLine = labeled.issue || findFirstMatch(lines, issuePatterns) || lines[0] || "Not provided.";
-  const impactLine = findFirstMatch(lines, impactPatterns) || "Not provided.";
-  const troubleshootingLines = labeled.troubleshooting
-    ? splitNotes(labeled.troubleshooting)
-    : findAllMatches(lines, troubleshootingPatterns).filter((line) => line !== issueLine);
-  const findingLines = findAllMatches(lines, findingPatterns);
-  const resolutionLine = labeled.resolution || findLastMatch(lines, resolutionPatterns) || "Not provided.";
+  const issueLine = labeled.issue || findFirstMatch(lines.filter((line) => !isMetadataLine(line)), issuePatterns) || lines.find((line) => !isMetadataLine(line)) || "Not provided.";
+  const impactLine = findFirstMatch(lines.filter((line) => !isMetadataLine(line)), impactPatterns) || "Not provided.";
+  const resolutionLine = labeled.resolution || findLastMatch(lines.filter((line) => !isMetadataLine(line)), resolutionPatterns) || "Not provided.";
   const escalationLine = labeled.escalationReason || findLastMatch(lines, escalationPatterns) || "";
+  const issueIndex = lines.findIndex((line) => normalizeLine(line).toLowerCase() === normalizeLine(issueLine).toLowerCase());
+  const resolutionIndex = lines.findIndex((line) => resolutionLine !== "Not provided." && normalizeLine(line).toLowerCase() === normalizeLine(resolutionLine).toLowerCase());
+
+  let troubleshootingLines = [];
+
+  if (labeled.troubleshooting) {
+    troubleshootingLines = splitNotes(labeled.troubleshooting);
+  } else {
+    const actionLines = findAllMatches(lines, troubleshootingPatterns);
+    const betweenIssueAndResolution = lines.filter((line, index) => {
+      const afterIssue = issueIndex === -1 ? index > 0 : index > issueIndex;
+      const beforeResolution = resolutionIndex === -1 ? true : index < resolutionIndex;
+      return afterIssue && beforeResolution;
+    });
+
+    troubleshootingLines = [...actionLines, ...betweenIssueAndResolution].filter((line) => {
+      const normalized = normalizeLine(line).toLowerCase();
+      if (!normalized) return false;
+      if (normalized === normalizeLine(issueLine).toLowerCase()) return false;
+      if (resolutionLine !== "Not provided." && normalized === normalizeLine(resolutionLine).toLowerCase()) return false;
+      if (escalationLine && normalized === normalizeLine(escalationLine).toLowerCase()) return false;
+      if (isMetadataLine(line) || isContextOnlyLine(line)) return false;
+      if (lineMatchesAny(line, escalationPatterns)) return false;
+      return true;
+    });
+  }
+
+  const findingLines = findAllMatches(lines, findingPatterns).filter((line) => !isMetadataLine(line));
+  const timeIssueOccurred = findTimeIssueOccurred(lines);
+  const detailFields = extractDetailedDescriptionFields({}, { timeIssueOccurred }, rawNotes);
 
   return {
     issue: cleanIssueText(issueLine),
@@ -1250,7 +1602,8 @@ function extractSections(rawNotes) {
     findings: uniqueLines(findingLines),
     resolution: capitalizeSentence(resolutionLine),
     escalationReason: escalationLine ? capitalizeSentence(escalationLine) : "",
-    timeIssueOccurred: findTimeIssueOccurred(lines),
+    timeIssueOccurred,
+    details: detailFields,
     rawLines: lines
   };
 }
@@ -1352,13 +1705,28 @@ ${displayValue(data.rawNotes)}`;
 function generateTicket() {
   const originalData = getFormData();
   const sections = extractSections(originalData.rawNotes || originalData.workNotes);
+  const details = sections.details || {};
 
   const updatedData = {
     ...originalData,
     shortDescription: buildShortDescription(originalData, sections),
-    detailedDescription: detailedTemplate(originalData, sections),
     workNotes: buildWorkNotes(sections)
   };
+
+  if (!updatedData.deviceAsset && details.deviceId) {
+    updatedData.deviceAsset = details.deviceId;
+  }
+  if (!updatedData.configurationItem && details.deviceId) {
+    updatedData.configurationItem = details.deviceId;
+  }
+  if (!updatedData.applicationService && details.application) {
+    updatedData.applicationService = details.application;
+  }
+  if (!updatedData.service && details.application) {
+    updatedData.service = details.application;
+  }
+
+  updatedData.detailedDescription = detailedTemplate(updatedData, sections);
 
   if (updatedData.state === "Resolved" && !updatedData.closeNotes.trim() && sections.resolution !== "Not provided.") {
     updatedData.closeNotes = sections.resolution;
@@ -1368,7 +1736,7 @@ function generateTicket() {
   const finalData = getFormData();
   elements.ticketOutput.value = buildGeneratedTicket(finalData, sections);
   setSaveStatus("Generated");
-  showToast("Ticket generated from draft notes.");
+  showToast("Ticket generated with detailed description and complete work notes.");
 }
 
 function validateRequiredFields() {
