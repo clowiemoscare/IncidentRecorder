@@ -143,6 +143,82 @@ h1 {
   padding: 16px;
 }
 
+.voice-capture {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin: 12px 0 14px;
+  padding: 14px;
+}
+
+.voice-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.voice-header h4 {
+  font-size: 0.95rem;
+  margin: 0 0 4px;
+}
+
+.voice-header p {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+.voice-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.voice-controls button {
+  padding: 8px 11px;
+}
+
+.voice-select {
+  max-width: 180px;
+  padding: 8px 10px;
+}
+
+.speech-status {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.speech-status.listening {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.interim-transcript {
+  background: #ffffff;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  min-height: 38px;
+  padding: 9px 10px;
+  margin-top: 8px;
+}
+
+.call-note-guide {
+  color: var(--muted);
+  font-size: 0.83rem;
+  margin-top: 8px;
+}
+
+.call-note-guide strong {
+  color: var(--text);
+}
+
 .group-title-row {
   display: flex;
   align-items: center;
@@ -450,7 +526,7 @@ button.primary:hover {
     <div>
       <p class="eyebrow">IncidentRecorder</p>
       <h1>Call-to-ticket helper</h1>
-      <p class="subtitle">Clean call-note workspace with detailed description extraction and complete work notes generation.</p>
+      <p class="subtitle">Capture rough call notes by typing or voice dictation, review them, then generate a clean incident ticket.</p>
     </div>
   </header>
 
@@ -461,7 +537,7 @@ button.primary:hover {
       <div class="section-heading">
         <div>
           <h2>Call workspace</h2>
-          <p class="section-note">Start with rough call notes, then generate the ticket fields and work notes.</p>
+          <p class="section-note">Start by typing or dictating rough call notes. Review/update the draft before generating the ticket.</p>
         </div>
         <span id="saveStatus" class="status-pill">Not saved</span>
       </div>
@@ -471,6 +547,29 @@ button.primary:hover {
           <div class="group-title-row">
             <h3>Draft call notes</h3>
             <span class="mini-pill">Write fast here</span>
+          </div>
+          <div class="voice-capture">
+            <div class="voice-header">
+              <div>
+                <h4>Call speech to rough notes</h4>
+                <p>Use microphone dictation to place call notes into the rough notes field. Review and edit the notes before generating the ticket.</p>
+              </div>
+              <span id="speechModePill" class="mini-pill">Ready</span>
+            </div>
+            <div class="voice-controls">
+              <button id="startSpeechBtn" type="button">Start voice notes</button>
+              <button id="pauseSpeechBtn" type="button">Pause</button>
+              <button id="stopSpeechBtn" type="button">Stop</button>
+              <button id="cleanRoughNotesBtn" type="button">Clean rough notes</button>
+              <select id="speechLanguage" class="voice-select" aria-label="Speech language">
+                <option value="en-US">English (US)</option>
+                <option value="en-CA">English (Canada)</option>
+                <option value="en-GB">English (UK)</option>
+              </select>
+            </div>
+            <div id="speechStatus" class="speech-status">Voice notes are not started.</div>
+            <div id="interimTranscript" class="interim-transcript">Live speech preview will appear here while listening.</div>
+            <div class="call-note-guide"><strong>Best workflow:</strong> start voice notes, speak short action lines during the call, stop, click Clean rough notes, review/edit, then generate the ticket.</div>
           </div>
           <label class="full-width">
             Rough notes from the call
@@ -679,7 +778,7 @@ button.primary:hover {
 
       <div class="tips">
         <h3>Quick note pattern</h3>
-        <p>You can write short lines during the call. The app will organize them into Issue, Troubleshooting Steps, and Resolution.</p>
+        <p>You can type, paste, or dictate short lines during the call. The app will organize them into Detailed Description and Work Notes.</p>
         <ul>
           <li>Acct #: 123456; Program name: Main Crib; Company name: ACME.</li>
           <li>User reports unable to login to GCOM Mobile App.</li>
@@ -992,6 +1091,12 @@ function sanitizeDetailedDetails(details = {}, data = {}) {
 
 const $ = (id) => document.getElementById(id);
 
+const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let speechRecognition = null;
+let speechRestartAllowed = false;
+let speechManuallyStopped = true;
+let lastFinalSpeechLine = "";
+
 const elements = {
   form: $("incidentForm"),
   ticketOutput: $("ticketOutput"),
@@ -1011,7 +1116,15 @@ const elements = {
   resetDetailedBtn: $("resetDetailedBtn"),
   resetWorkBtn: $("resetWorkBtn"),
   copyDetailedBtn: $("copyDetailedBtn"),
-  copyWorkBtn: $("copyWorkBtn")
+  copyWorkBtn: $("copyWorkBtn"),
+  startSpeechBtn: $("startSpeechBtn"),
+  pauseSpeechBtn: $("pauseSpeechBtn"),
+  stopSpeechBtn: $("stopSpeechBtn"),
+  cleanRoughNotesBtn: $("cleanRoughNotesBtn"),
+  speechStatus: $("speechStatus"),
+  speechModePill: $("speechModePill"),
+  interimTranscript: $("interimTranscript"),
+  speechLanguage: $("speechLanguage")
 };
 
 function getValue(id) {
@@ -1810,6 +1923,284 @@ function generateTicket() {
   showToast("Ticket generated without duplicate ticket fields or raw notes.");
 }
 
+function configureSpeechControls() {
+  if (!SpeechRecognitionConstructor) {
+    elements.startSpeechBtn.disabled = true;
+    elements.pauseSpeechBtn.disabled = true;
+    elements.stopSpeechBtn.disabled = true;
+    updateSpeechStatus("Voice dictation is not available in this browser. You can still paste a transcript or type notes, then use Clean rough notes.", "Unavailable", false);
+    return;
+  }
+
+  elements.pauseSpeechBtn.disabled = true;
+  elements.stopSpeechBtn.disabled = true;
+  updateSpeechStatus("Voice notes are ready. Click Start voice notes when the call begins.", "Ready", false);
+}
+
+function updateSpeechStatus(message, pillText = "Ready", isListening = false) {
+  if (elements.speechStatus) {
+    elements.speechStatus.textContent = message;
+    elements.speechStatus.classList.toggle("listening", Boolean(isListening));
+  }
+  if (elements.speechModePill) {
+    elements.speechModePill.textContent = pillText;
+  }
+}
+
+function createSpeechRecognition() {
+  if (!SpeechRecognitionConstructor) return null;
+
+  const recognition = new SpeechRecognitionConstructor();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = getValue("speechLanguage") || "en-US";
+
+  recognition.onstart = () => {
+    elements.startSpeechBtn.disabled = true;
+    elements.pauseSpeechBtn.disabled = false;
+    elements.stopSpeechBtn.disabled = false;
+    updateSpeechStatus("Listening. Speak short issue, action, and result lines. Final speech will append to rough notes.", "Listening", true);
+  };
+
+  recognition.onresult = (event) => {
+    let interimText = "";
+
+    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      const result = event.results[index];
+      const transcript = result[0] && result[0].transcript ? result[0].transcript.trim() : "";
+      if (!transcript) continue;
+
+      if (result.isFinal) {
+        const line = formatDictationLine(transcript);
+        if (line && line.toLowerCase() !== lastFinalSpeechLine.toLowerCase()) {
+          appendSpeechLineToRawNotes(line);
+          lastFinalSpeechLine = line;
+        }
+      } else {
+        interimText += `${transcript} `;
+      }
+    }
+
+    elements.interimTranscript.textContent = interimText.trim()
+      ? `Heard: ${interimText.trim()}`
+      : "Listening for the next phrase...";
+  };
+
+  recognition.onerror = (event) => {
+    const errorName = event && event.error ? event.error : "unknown";
+    let message = `Voice dictation stopped because of a microphone or speech recognition error: ${errorName}.`;
+
+    if (errorName === "not-allowed" || errorName === "service-not-allowed") {
+      message = "Microphone access was blocked. Allow microphone access in the browser, then start voice notes again.";
+      speechRestartAllowed = false;
+      speechManuallyStopped = true;
+    }
+
+    if (errorName === "no-speech") {
+      message = "No speech detected. Keep the call audio clear or continue typing notes.";
+    }
+
+    updateSpeechStatus(message, "Stopped", false);
+  };
+
+  recognition.onend = () => {
+    if (speechRestartAllowed && !speechManuallyStopped) {
+      window.setTimeout(() => {
+        try {
+          speechRecognition.start();
+        } catch (error) {
+          updateSpeechStatus("Voice notes paused. Click Start voice notes to continue.", "Paused", false);
+          elements.startSpeechBtn.disabled = false;
+          elements.pauseSpeechBtn.disabled = true;
+          elements.stopSpeechBtn.disabled = true;
+        }
+      }, 450);
+      return;
+    }
+
+    elements.startSpeechBtn.disabled = false;
+    elements.pauseSpeechBtn.disabled = true;
+    elements.stopSpeechBtn.disabled = true;
+    updateSpeechStatus("Voice notes stopped. Review the rough notes or click Clean rough notes before generating the ticket.", "Stopped", false);
+  };
+
+  return recognition;
+}
+
+function startSpeechNotes() {
+  if (!SpeechRecognitionConstructor) {
+    showToast("Voice dictation is not available in this browser.");
+    return;
+  }
+
+  if (!speechRecognition) {
+    speechRecognition = createSpeechRecognition();
+  }
+
+  if (!speechRecognition) return;
+
+  speechRecognition.lang = getValue("speechLanguage") || "en-US";
+  speechRestartAllowed = true;
+  speechManuallyStopped = false;
+
+  try {
+    speechRecognition.start();
+  } catch (error) {
+    updateSpeechStatus("Voice notes are already listening or the browser needs a moment. Try again in a second.", "Listening", true);
+  }
+}
+
+function pauseSpeechNotes() {
+  if (!speechRecognition) return;
+  speechRestartAllowed = false;
+  speechManuallyStopped = true;
+  updateSpeechStatus("Voice notes paused. Click Start voice notes to continue.", "Paused", false);
+  try {
+    speechRecognition.stop();
+  } catch (error) {
+    // Already stopped.
+  }
+}
+
+function stopSpeechNotes() {
+  if (!speechRecognition) return;
+  speechRestartAllowed = false;
+  speechManuallyStopped = true;
+  elements.interimTranscript.textContent = "Voice notes stopped. Review the rough notes below.";
+  try {
+    speechRecognition.stop();
+  } catch (error) {
+    // Already stopped.
+  }
+}
+
+function formatDictationLine(text) {
+  let value = normalizeLine(text)
+    .replace(/\bnew line\b/gi, "")
+    .replace(/\bnext line\b/gi, "")
+    .replace(/\bperiod\b/gi, ".")
+    .replace(/\bcomma\b/gi, ",")
+    .replace(/\s+([.,])/g, "$1")
+    .replace(/\.{2,}/g, ".")
+    .trim();
+
+  value = expandCommonDictationLabels(value);
+
+  if (!value) return "";
+  if (!/[.!?]$/.test(value) && !/[:#]$/.test(value)) {
+    value += ".";
+  }
+  return capitalizeSentence(value);
+}
+
+function expandCommonDictationLabels(text) {
+  let value = String(text || "");
+  const replacements = [
+    [/\baccount number\b/gi, "Account #"],
+    [/\bacct number\b/gi, "Acct #"],
+    [/\bcrib number\b/gi, "Crib #"],
+    [/\bcrib id\b/gi, "Crib #"],
+    [/\bprogram id\b/gi, "Program id"],
+    [/\bdevice id affected\b/gi, "Device ID (Affected)"],
+    [/\bdevice id\b/gi, "Device ID"],
+    [/\bmachine serial number\b/gi, "Machine Serial Number(s)"],
+    [/\bserial number\b/gi, "Machine Serial Number(s)"],
+    [/\bsoftware version\b/gi, "Software Version"],
+    [/\bapp version\b/gi, "Application Version"],
+    [/\bapplication version\b/gi, "Application Version"],
+    [/\bsite id\b/gi, "Site ID"],
+    [/\bcp\b/gi, "CP"],
+    [/\bgcom\b/gi, "GCOM"],
+    [/\bimei\b/gi, "IMEI"]
+  ];
+
+  replacements.forEach(([pattern, replacement]) => {
+    value = value.replace(pattern, replacement);
+  });
+
+  return value;
+}
+
+function appendSpeechLineToRawNotes(line) {
+  const textarea = $("rawNotes");
+  if (!textarea || !line) return;
+
+  const current = textarea.value.trimEnd();
+  textarea.value = current ? `${current}\n${line}` : line;
+  textarea.scrollTop = textarea.scrollHeight;
+  setSaveStatus("Unsaved changes");
+}
+
+function cleanRoughNotes() {
+  const rawNotes = getValue("rawNotes");
+  if (!rawNotes) {
+    showToast("No rough notes to clean yet.");
+    return;
+  }
+
+  const sections = extractSections(rawNotes);
+  const details = sections.details || extractDetailedDescriptionFields(getFormData(), sections, rawNotes);
+  const cleanedBlocks = [];
+
+  if (sections.issue && sections.issue !== "Not provided.") {
+    cleanedBlocks.push(`Issue:\n${sections.issue}`);
+  }
+
+  const detailLines = buildCleanedDetailLines(details);
+  if (detailLines.length) {
+    cleanedBlocks.push(detailLines.join("\n"));
+  }
+
+  const troubleshootingLines = uniqueLines(sections.troubleshooting || []);
+  if (troubleshootingLines.length) {
+    cleanedBlocks.push(`Troubleshooting Steps:\n${troubleshootingLines.map((line) => `- ${formatTroubleshootingLine(line)}`).join("\n")}`);
+  }
+
+  if (sections.resolution && sections.resolution !== "Not provided.") {
+    cleanedBlocks.push(`Resolution:\n${sections.resolution}`);
+  }
+
+  if (sections.escalationReason) {
+    cleanedBlocks.push(`Reason for Escalation:\n${sections.escalationReason}`);
+  }
+
+  if (!cleanedBlocks.length) {
+    showToast("I could not find enough structure to clean yet. Add issue, action, or result lines first.");
+    return;
+  }
+
+  $("rawNotes").value = cleanedBlocks.join("\n\n");
+  setSaveStatus("Unsaved changes");
+  showToast("Rough notes cleaned. Review/edit them, then generate the ticket.");
+}
+
+function buildCleanedDetailLines(details = {}) {
+  const rows = [
+    ["Crib/Program id", details.cribProgramId],
+    ["Program name", details.programName],
+    ["Company name", details.companyName],
+    ["Site ID (If Applicable)", details.siteId],
+    ["Acct #", details.accountNumber],
+    ["Software Version", details.softwareVersion],
+    ["Device ID (Affected)", details.deviceId],
+    ["Machine Serial Number(s)", details.machineSerialNumbers],
+    ["Cradlepoint Serial Number", details.cradlepointSerialNumber],
+    ["IMEI", details.imei],
+    ["Carrier", details.carrier],
+    ["Badge Reader", details.badgeReader],
+    ["Model", details.model],
+    ["Phone Model", details.phoneModel],
+    ["Phone Software Version", details.phoneSoftwareVersion],
+    ["Application", details.application],
+    ["Application Version", details.applicationVersion],
+    ["Time issue occurred", details.timeIssueOccurred]
+  ];
+
+  return rows
+    .filter(([, value]) => value && String(value).trim())
+    .map(([label, value]) => `${label}: ${cleanExtractedValue(value)}`);
+}
+
 function validateRequiredFields() {
   const missing = REQUIRED_FIELD_IDS.filter((field) => !getValue(field));
 
@@ -2006,6 +2397,9 @@ function clearForm() {
   const confirmed = confirm("Reset all fields, generated ticket, and draft call notes?");
   if (!confirmed) return;
 
+  stopSpeechNotes();
+  lastFinalSpeechLine = "";
+
   FORM_FIELD_IDS.forEach((field) => {
     const element = $(field);
     if (element && !element.disabled) {
@@ -2042,6 +2436,15 @@ function applyDefaults() {
 }
 
 function wireEvents() {
+  elements.startSpeechBtn.addEventListener("click", startSpeechNotes);
+  elements.pauseSpeechBtn.addEventListener("click", pauseSpeechNotes);
+  elements.stopSpeechBtn.addEventListener("click", stopSpeechNotes);
+  elements.cleanRoughNotesBtn.addEventListener("click", cleanRoughNotes);
+  elements.speechLanguage.addEventListener("change", () => {
+    if (speechRecognition) {
+      speechRecognition.lang = getValue("speechLanguage") || "en-US";
+    }
+  });
   elements.generateBtn.addEventListener("click", generateTicket);
   elements.saveBtn.addEventListener("click", saveDraft);
   elements.submitBtn.addEventListener("click", submitDraft);
@@ -2099,6 +2502,7 @@ function initialize() {
   wireEvents();
   renderDrafts();
   updateCounters();
+  configureSpeechControls();
 }
 
 initialize();
