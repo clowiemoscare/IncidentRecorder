@@ -248,46 +248,175 @@
   </dialog>
 
   <dialog class="modal" id="newIncidentDialog">
-    <form class="modal-shell recorder-modal-shell" id="newIncidentForm" method="dialog">
-      <div class="modal-header sticky-modal-header">
-        <div><span class="eyebrow">IncidentRecorder</span><h2>New Incident</h2><p>Capture rough notes, generate a concise ticket, and save it locally.</p></div>
-        <button class="icon-button" type="button" data-close-dialog="newIncidentDialog" aria-label="Close"><i data-lucide="x"></i></button>
+    <div class="modal-shell recorder-modal-shell">
+      <div class="modal-header recorder-header">
+        <div>
+          <span class="eyebrow">IncidentRecorder</span>
+          <h2>New Incident · Call-to-ticket helper</h2>
+          <p>Capture a call or paste rough notes, verify detected details, then generate a clean copy-ready ticket.</p>
+          <nav class="recorder-workflow" aria-label="Incident workflow">
+            <a href="#captureNotes"><span>1</span> Capture</a>
+            <a href="#verifyDetails"><span>2</span> Verify</a>
+            <a href="#ticketDescriptions"><span>3</span> Generate</a>
+            <a href="#recorderDrafts"><span>4</span> Save</a>
+          </nav>
+        </div>
+        <div class="recorder-header-actions">
+          <span class="subtle-pill" id="recorderSaveStatus">Not saved</span>
+          <button class="icon-button" type="button" data-close-dialog="newIncidentDialog" aria-label="Close"><i data-lucide="x"></i></button>
+        </div>
       </div>
 
-      <div class="recorder-grid">
-        <section class="recorder-column">
-          <h3>Incident information</h3>
-          <div class="form-grid two-col">
-            <label>Title <input id="newTitle" required placeholder="Unauthorized access attempt" /></label>
-            <label>Assigned To <input id="newAssignedTo" value="Clowie Moscare" /></label>
-            <label>Severity <select id="newSeverity"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></label>
-            <label>Status <select id="newStatus"><option value="investigating" selected>Investigating</option><option value="pending">Pending</option><option value="resolved">Resolved</option></select></label>
-            <label>Category <select id="newCategory"><option>Theft</option><option>Vandalism</option><option>Trespassing</option><option>Suspicious Activity</option><option selected>Technical / Other</option></select></label>
-            <label>Location <input id="newLocation" placeholder="Main Entrance" /></label>
-            <label>Account # <input id="newAccount" placeholder="Optional" /></label>
-            <label>Device ID <input id="newDevice" placeholder="Camera / device ID" /></label>
-          </div>
-          <label>Rough notes / transcript
-            <textarea id="newRawNotes" rows="9" placeholder="Write short lines while you are on the call or reviewing footage. Include the issue, troubleshooting/action taken, findings, and resolution when known."></textarea>
-          </label>
-          <div class="button-row">
-            <button class="button" id="cleanNotesBtn" type="button"><i data-lucide="sparkles"></i> Clean notes</button>
-            <button class="button primary" id="generateTicketBtn" type="button"><i data-lucide="wand-sparkles"></i> Generate ticket</button>
-          </div>
-        </section>
+      <div class="recorder-workspace">
+        <div class="recorder-form-column">
+          <form id="newIncidentForm" autocomplete="off">
+            <section class="recorder-section recorder-primary" id="captureNotes">
+              <div class="recorder-section-heading">
+                <div><h3>1. Capture call notes</h3><p>Use rough notes or voice dictation first. You can clean and extract details before generating.</p></div>
+                <span class="subtle-pill">Write fast here</span>
+              </div>
 
-        <section class="recorder-column output-column">
-          <div class="section-row"><h3>Generated ticket</h3><span class="subtle-pill">Editable</span></div>
-          <textarea id="generatedTicket" class="generated-ticket" rows="24" placeholder="Generate a ticket from the rough notes, or write one directly."></textarea>
-          <div class="button-row">
-            <button class="button" id="copyGeneratedBtn" type="button"><i data-lucide="copy"></i> Copy</button>
+              <div class="voice-card" aria-label="Voice note controls">
+                <div class="voice-status"><span class="voice-dot" id="voiceDot"></span><span id="voiceStatus">Voice notes are off. Click Start voice notes when you are ready.</span></div>
+                <div class="voice-tools">
+                  <button class="button primary" id="startVoiceBtn" type="button"><i data-lucide="mic"></i> Start voice notes</button>
+                  <button class="button" id="pauseVoiceBtn" type="button"><i data-lucide="pause"></i> Pause</button>
+                  <button class="button" id="stopVoiceBtn" type="button"><i data-lucide="square"></i> Stop</button>
+                  <button class="button" id="cleanNotesBtn" type="button"><i data-lucide="sparkles"></i> Clean rough notes</button>
+                </div>
+                <div class="interim-transcript" id="interimTranscript" aria-live="polite">Interim transcript will appear here while listening.</div>
+                <p>Tip: speak short action lines. The cleaner ignores common greetings/filler and focuses on issue, troubleshooting, findings, and resolution.</p>
+              </div>
+
+              <label class="recorder-label">Rough notes from the call
+                <textarea id="newRawNotes" class="raw-notes" rows="8" placeholder="Example: rep unable to sync machine. Account #: 887754409. Device ID: MJ0J6D84. Located CP in NetCloud and confirmed offline. Unplugged power cable. Pressed reset. Synced machine. Sync successful."></textarea>
+              </label>
+
+              <div class="snippet-card">
+                <strong>Quick troubleshooting snippets</strong>
+                <p>Add common steps to the rough notes, then edit them as needed.</p>
+                <div class="snippet-row" id="snippetRow"></div>
+              </div>
+
+              <div class="button-row recorder-action-row">
+                <button class="button" id="extractDetailsBtn" type="button"><i data-lucide="scan-search"></i> Extract details</button>
+                <button class="button primary" id="generateTicketBtn" type="button"><i data-lucide="wand-sparkles"></i> Generate clean ticket</button>
+                <button class="button" id="saveRecorderDraftBtn" type="button"><i data-lucide="save"></i> Save draft</button>
+                <button class="button" id="submitIncidentBtn" type="button">Submit draft</button>
+                <button class="button" id="resolveIncidentBtn" type="button"><i data-lucide="circle-check-big"></i> Resolve incident</button>
+                <button class="button danger" id="resetRecorderBtn" type="button">Reset all fields</button>
+              </div>
+            </section>
+
+            <section class="recorder-section" id="verifyDetails">
+              <div class="recorder-section-heading">
+                <div><h3>2. Verify details found in notes</h3><p>The app extracts these values into the Detailed Description template. Edit anything that looks wrong.</p></div>
+                <span class="subtle-pill">Review before generate</span>
+              </div>
+              <div class="detected-summary" id="detectedSummary" aria-live="polite">No details extracted yet.</div>
+              <div class="recorder-form-grid detail-grid">
+                <label>Crib/Program id<input id="cribProgramId" placeholder="Example: 14560" /></label>
+                <label>Program name<input id="programName" placeholder="Example: BIMBO BAKERIES" /></label>
+                <label>Company name<input id="companyName" placeholder="Example: BIMBO BAKERIES" /></label>
+                <label>Site ID<input id="siteId" placeholder="If applicable" /></label>
+                <label>Acct #<input id="accountNumber" placeholder="Example: 887754409" /></label>
+                <label>Software Version<input id="softwareVersion" placeholder="Example: 2.0.888" /></label>
+                <label>Device ID (Affected)<input id="deviceId" placeholder="Example: MJ0J6D84" /></label>
+                <label>Machine Serial Number(s)<input id="machineSerial" placeholder="Example: IQ4452105089" /></label>
+                <label>Cradlepoint Serial Number<input id="cradlepointSerial" placeholder="Optional" /></label>
+                <label>IMEI<input id="imei" placeholder="Optional" /></label>
+                <label>Carrier<input id="carrier" placeholder="Optional" /></label>
+                <label>Badge Reader<input id="badgeReader" placeholder="Optional" /></label>
+                <label>Model<input id="model" placeholder="Optional" /></label>
+                <label>Phone Model<input id="phoneModel" placeholder="Optional" /></label>
+                <label>Phone Software Version<input id="phoneSoftwareVersion" placeholder="Optional" /></label>
+                <label>Application<input id="application" placeholder="Optional" /></label>
+                <label>Application Version<input id="applicationVersion" placeholder="Optional" /></label>
+                <label>Time issue occurred<input id="timeIssueOccurred" placeholder="Example: around 9 AM" /></label>
+              </div>
+            </section>
+
+            <section class="recorder-section">
+              <div class="recorder-section-heading"><div><h3>Required ticket info</h3><p>ServiceNow-ready routing and impact fields.</p></div></div>
+              <div class="recorder-form-grid required-grid">
+                <label><span><b>*</b> Category</span><select id="newCategory"></select></label>
+                <label><span><b>*</b> Subcategory</span><select id="newSubcategory"></select></label>
+                <label>State<select id="recorderState"><option>New</option><option>In Progress</option><option>On Hold</option><option>Resolved</option><option>Closed</option></select></label>
+                <label><span><b>*</b> Business Impact</span><select id="businessImpact"><option>Minor</option><option>Moderate</option><option>Major</option><option>Critical</option></select></label>
+                <label><span><b>*</b> User Impact</span><select id="userImpact"><option>Single User: 1 user</option><option>Multiple Users: 2-10 users</option><option>Department: 11+ users</option><option>Site-wide</option><option>Enterprise-wide</option></select></label>
+                <label><span><b>*</b> Urgency</span><select id="urgency"><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label>
+                <label>Priority<input id="priority" disabled /></label>
+                <label><span><b>*</b> Assignment Group</span><input id="assignmentGroup" value="T1 KeepStock" /></label>
+                <label><span><b>*</b> Assigned To</span><input id="newAssignedTo" value="Clowie Moscare" /></label>
+                <label>Service<input id="service" placeholder="Example: KeepStock" /></label>
+                <label>Service offering<input id="serviceOffering" placeholder="Optional" /></label>
+                <label>Configuration item<input id="configurationItem" placeholder="CI, machine, or asset" /></label>
+              </div>
+            </section>
+
+            <details class="recorder-section optional-section">
+              <summary>Advanced and optional fields</summary>
+              <div class="recorder-form-grid optional-grid">
+                <label>Channel<select id="channel"><option>Phone</option><option>Email</option><option>Slack</option><option>Chat</option><option>Self-Service</option><option>Monitoring</option></select></label>
+                <label>Location<input id="newLocation" placeholder="Optional" /></label>
+                <label>Parts Request Number(s)<input id="partsRequest" placeholder="Optional" /></label>
+                <label>Device / asset<input id="deviceAsset" placeholder="Optional extra asset note" /></label>
+                <label>Application / service note<input id="applicationService" placeholder="Optional extra application detail" /></label>
+                <label>Related Search<input id="relatedSearch" type="search" placeholder="Optional knowledge search" /></label>
+                <label>Knowledge scope<select id="knowledgeScope"><option>Knowledge & Catalog (All)</option><option>Knowledge</option><option>Catalog</option></select></label>
+                <label>Watch list<input id="watchList" placeholder="Optional watchers" /></label>
+                <label>Resolution Code<select id="resolutionCode"><option value="">-- None --</option><option>Resolved by Service Desk</option><option>Resolved by T2</option><option>Vendor / Carrier Issue</option><option>User Education</option><option>Duplicate Incident</option></select></label>
+                <label class="span-3">Close Notes<textarea id="closeNotes" rows="4" placeholder="Final customer-facing close notes..."></textarea></label>
+              </div>
+            </details>
+
+            <section class="recorder-section" id="ticketDescriptions">
+              <div class="recorder-section-heading"><div><h3>3. Ticket descriptions</h3><p>Generated from your notes and still fully editable.</p></div></div>
+              <label class="recorder-label"><span><b>*</b> Short Description</span><input id="newTitle" maxlength="180" placeholder="Generated from draft notes or type your own" /></label>
+              <label class="recorder-label"><span><b>*</b> Detailed Description</span><textarea id="detailedDescription" rows="13" maxlength="4000"></textarea></label>
+              <div class="field-tools"><span id="detailedCounter">4000 characters remaining</span><div><button class="button" id="resetDetailedBtn" type="button">Reset template</button><button class="button" id="copyDetailedBtn" type="button">Copy detailed description</button></div></div>
+              <label class="recorder-label"><span><b>*</b> Work Notes</span><textarea id="workNotes" class="work-notes" rows="10" maxlength="4000"></textarea></label>
+              <div class="field-tools"><span id="workCounter">4000 characters remaining</span><div><button class="button" id="resetWorkBtn" type="button">Reset template</button><button class="button" id="copyWorkBtn" type="button">Copy work notes</button></div></div>
+            </section>
+          </form>
+
+          <section class="recorder-section recorder-drafts" id="recorderDrafts">
+            <div class="recorder-section-heading">
+              <div><h3>Saved drafts</h3><p>Saved only in this browser. Recent category choices are remembered.</p></div>
+              <button class="action-link" id="deleteRecorderDraftsBtn" type="button">Delete all</button>
+            </div>
+            <div class="recorder-draft-list" id="recorderDraftList">No saved drafts yet.</div>
+          </section>
+        </div>
+
+        <aside class="recorder-output-column" aria-label="Generated ticket">
+          <div class="section-row"><div><h3>Generated ticket</h3><p>Only the copy-ready ticket sections are shown here.</p></div><span class="subtle-pill">Editable</span></div>
+          <div class="time-saved" id="recorderTimeSaved"></div>
+          <textarea id="generatedTicket" class="generated-ticket" rows="25" placeholder="Your generated ticket will appear here. You can edit it before copying."></textarea>
+          <div class="button-row output-actions">
+            <button class="button primary" id="copyGeneratedBtn" type="button"><i data-lucide="copy"></i> Copy ticket</button>
+            <button class="button" id="copyWorkFromOutputBtn" type="button">Copy work notes</button>
+            <button class="button" id="copyDetailedFromOutputBtn" type="button">Copy detailed description</button>
             <button class="button" id="downloadGeneratedBtn" type="button"><i data-lucide="download"></i> Download .txt</button>
-            <button class="button primary" id="saveIncidentBtn" type="submit"><i data-lucide="save"></i> Save Incident</button>
           </div>
-          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>Incident data and drafts stay in this browser's local storage. Nothing is uploaded by this static app.</span></div>
-        </section>
+          <button class="button primary full save-incident-button" id="saveIncidentBtn" type="button"><i data-lucide="save"></i> Save Incident to Dashboard</button>
+
+          <div class="review-card">
+            <strong>Before copying</strong>
+            <label><input type="checkbox" /> Account/program details verified</label>
+            <label><input type="checkbox" /> Device ID and machine serial verified</label>
+            <label><input type="checkbox" /> Troubleshooting steps complete</label>
+            <label><input type="checkbox" /> Resolution confirmed or escalation reason added</label>
+          </div>
+          <div class="good-note-card">
+            <strong>Good note pattern</strong>
+            <p>Write short lines while you are on the call. The app turns them into Detailed Description and Work Notes.</p>
+            <ul><li>rep unable to sync machine</li><li>Account #: 887754409</li><li>Device ID: MJ0J6D84</li><li>located CP in NetCloud and confirmed offline</li><li>sync successful</li></ul>
+          </div>
+          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>Voice transcription, drafts, and incident records stay in the browser. The static app does not upload call notes to a server.</span></div>
+        </aside>
       </div>
-    </form>
+    </div>
   </dialog>
 
   <script async src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" onload="window.lucide && window.lucide.createIcons({ attrs: { 'stroke-width': 1.8 } })"></script>

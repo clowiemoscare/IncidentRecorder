@@ -255,80 +255,344 @@ function formatBytes(bytes) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`;
 }
 
+const RECORDER_DRAFT_STORAGE_KEY = "incidentRecorderDraftsV10UxFlow";
+const RECORDER_SETTINGS_KEY = "incidentRecorderSettingsV10";
+const RECORDER_WORK_NOTES_TEMPLATE = `Issue:\n\n\nTroubleshooting Steps:\n\n\nResolution:\n\n\nReason for Escalation: [Only if escalated to T2]`;
+const RECORDER_SNIPPETS = [
+  "Confirmed machine is connected to a cradlepoint",
+  "Located CP in NetCloud",
+  "Confirmed CP is offline",
+  "Unplugged power cable",
+  "Pressed reset",
+  "Confirmed martini glass is solid green",
+  "Synced machine",
+  "Verified account is active",
+  "Cleared app cache",
+  "Had user retry"
+];
+const RECORDER_CATEGORY_MAP = {
+  "Keepstock - MobileCast": ["Access/login", "Routing", "other"],
+  "Keepstock - GCOM Mobile App": ["access/login", "Barcode label", "Bluetooth Scanner", "Camera Scanner", "Cart", "Ks Items", "other"],
+  "Keepstock Canada - Onsite": ["Access/Login", "CS Software", "Email notification", "Item Data", "Item maintenance", "MRF Issue", "MRF required", "order approval", "program maintenance", "other"],
+  "Keepstock - CM - AMS toolbox": ["Hardware issue: - Drop sensor", "Hardware issue: - lightning", "Hardware issue: - transformer", "Hardware issue: - Fuses", "Hardware issue: - Internal Keypad", "Hardware issue: - Main board", "Hardware issue: - Main harness", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Tray", "Hardware issue: - Tray harness", "Hardware issue: - Machine Replacement Request", "physical damage", "Product sizing", "other"],
+  "Keepstock - CM - Locker": ["Hardware issue: - Main board", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Machine Replacement Request", "physical damage", "other"],
+  "Keepstock - CM - Carousel": ["Hardware issue: - Main board", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Machine Replacement Request", "physical damage", "other"],
+  "Keepstock - Seaga - Coil": ["Hardware issue: - Main board", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Machine Replacement Request", "physical damage", "other"],
+  "Keepstock - Seaga - Locker": ["Hardware issue: - Main board", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Machine Replacement Request", "physical damage", "other"],
+  "Keepstock - CM - PC/Data": ["Data issue ATR setting", "craftcodes/uda", "item data", "data issue-user/login", "hardware issue - ComPorts", "hardware issue - Existing badge reader", "hardware issue - New badge reader", "hardware issue - Touchscreen", "Network issue - Cellular", "Network issue - Customer network", "reporting-PO issue", "Software issue", "other"],
+  "Keepstock - Seaga - PC/Data": ["Data issue ATR setting", "craftcodes/uda", "item data", "data issue-user/login", "hardware issue - ComPorts", "hardware issue - Existing badge reader", "hardware issue - New badge reader", "hardware issue - Touchscreen", "Network issue - Cellular", "Network issue - Customer network", "reporting-PO issue", "Software issue", "other"],
+  "Keepstock - Onsite": ["Email notification", "Drop call-immediately", "KS console", "KS console - access/login", "KS console - Report manager", "KS Web - User groups/Product groups", "KS Web - Access/login", "KS Web - item management", "KS Web - Labels", "KS Web - Reporting", "KS Web - Order Status Viewer", "KS Web - User management", "consignment issue", "CMI scanner", "MRF Issue", "MRF required", "New customer request", "Approver update", "Order issue - CS", "Order issue - Epro", "Order issue - GCOM", "Parts Assistance", "other"]
+};
+const RECORDER_DETAIL_FIELDS = [
+  ["cribProgramId", "Crib/Program id"], ["programName", "Program name"], ["companyName", "Company name"], ["siteId", "Site ID"],
+  ["accountNumber", "Acct #"], ["softwareVersion", "Software Version"], ["deviceId", "Device ID (Affected)"], ["machineSerial", "Machine Serial Number(s)"],
+  ["cradlepointSerial", "Cradlepoint Serial Number"], ["imei", "IMEI"], ["carrier", "Carrier"], ["badgeReader", "Badge Reader"],
+  ["model", "Model"], ["phoneModel", "Phone Model"], ["phoneSoftwareVersion", "Phone Software Version"], ["application", "Application"],
+  ["applicationVersion", "Application Version"], ["timeIssueOccurred", "Time issue occurred"]
+];
+const RECORDER_FORM_IDS = [
+  "newRawNotes", "cribProgramId", "programName", "companyName", "siteId", "accountNumber", "softwareVersion", "deviceId", "machineSerial", "cradlepointSerial", "imei", "carrier", "badgeReader", "model", "phoneModel", "phoneSoftwareVersion", "application", "applicationVersion", "timeIssueOccurred", "newCategory", "newSubcategory", "recorderState", "businessImpact", "userImpact", "urgency", "priority", "assignmentGroup", "newAssignedTo", "service", "serviceOffering", "configurationItem", "channel", "newLocation", "partsRequest", "deviceAsset", "applicationService", "relatedSearch", "knowledgeScope", "watchList", "resolutionCode", "closeNotes", "newTitle", "detailedDescription", "workNotes", "generatedTicket"
+];
+
+let recorderRecognition = null;
+let recorderShouldRestartVoice = false;
+let recorderVoiceListening = false;
+
 function openNewIncident() {
+  stopRecorderVoiceNotes();
   $("newIncidentForm").reset();
-  $("newAssignedTo").value = appState.settings?.name || "Clowie Moscare";
   $("generatedTicket").value = "";
+  applyRecorderDefaults();
+  renderRecorderSnippets();
+  renderRecorderDrafts();
+  setupRecorderVoiceNotes();
+  setRecorderSaveStatus("Not saved");
   $("newIncidentDialog").showModal();
+  refreshIcons();
+}
+
+function normalizeRecorderLine(text) {
+  return String(text || "").replace(/[\u2022\u00b7]/g, " ").replace(/^[-*]+\s*/, "").replace(/\s+/g, " ").trim();
 }
 
 function cleanNotesText(raw) {
-  const filler = /^(hi|hello|thanks|thank you|okay|ok|um|uh|so|basically|you know)\b/i;
-  const lines = String(raw || "").split(/\n|(?<=[.!?])\s+/).map((line) => line.trim()).filter(Boolean);
-  return unique(lines.filter((line) => !filler.test(line)).map((line) => line.replace(/\s+/g, " "))).join("\n");
+  const filler = /^(hi|hello|hey|thanks|thank you|okay|ok|um|uh|hmm|so|basically|you know|good morning|good afternoon|good evening)\b/i;
+  const lines = String(raw || "")
+    .replace(/\r/g, "\n")
+    .replace(/[\u2022\u00b7]/g, "\n")
+    .split(/\n|;|(?<=[.!?])\s+/)
+    .map(normalizeRecorderLine)
+    .filter(Boolean)
+    .filter((line) => !filler.test(line));
+  return unique(lines).join("\n");
 }
 
 function unique(items) {
   const seen = new Set();
   return items.filter((item) => {
-    const key = item.toLowerCase();
-    if (seen.has(key)) return false;
+    const key = String(item).toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!key || seen.has(key)) return false;
     seen.add(key); return true;
   });
 }
 
-function generateTicketFromForm() {
-  const raw = cleanNotesText($("newRawNotes").value);
-  const lines = raw.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  const issue = lines.find((line) => /(unable|cannot|can't|error|failed|attempt|detected|missing|offline|alarm|theft|vandal|suspicious|loiter)/i.test(line)) || lines[0] || "No issue description provided.";
-  const actions = lines.filter((line) => /(checked|confirmed|reviewed|located|contacted|reset|restarted|tested|sent|asked|verified|investigat|security|camera|footage|escalat)/i.test(line));
-  const resolution = [...lines].reverse().find((line) => /(resolved|fixed|restored|working|completed|left|cleared|successful|closed)/i.test(line)) || "Pending investigation or follow-up.";
-  const id = nextIncidentId();
-  const today = new Date().toISOString().slice(0, 10);
-  const bullets = actions.length ? actions.map((line) => `- ${sentence(line)}`).join("\n") : "- No troubleshooting or response steps captured yet.";
-  const ticket = `Incident Ticket Draft\nCreated: ${new Date().toLocaleString()}\n\nIncident ID: ${id}\nTitle: ${value("newTitle", "Not provided")}\nDate: ${today}\nSeverity: ${value("newSeverity", "medium")}\nStatus: ${value("newStatus", "investigating")}\nAssigned To: ${value("newAssignedTo", "Not provided")}\nCategory: ${value("newCategory", "Not provided")}\nLocation: ${value("newLocation", "Not provided")}\nAccount #: ${value("newAccount", "Not provided")}\nDevice ID: ${value("newDevice", "Not provided")}\n\nIssue:\n${sentence(issue)}\n\nActions / Findings:\n${bullets}\n\nResolution / Next Step:\n${sentence(resolution)}\n\nRaw Notes:\n${raw || "Not provided"}`;
-  $("newRawNotes").value = raw;
-  $("generatedTicket").value = ticket;
-  showToast("Ticket draft generated.");
-}
-
 function sentence(text) {
-  const clean = String(text || "").trim();
+  const clean = normalizeRecorderLine(text);
   if (!clean) return "Not provided.";
   const capped = clean[0].toUpperCase() + clean.slice(1);
   return /[.!?]$/.test(capped) ? capped : `${capped}.`;
 }
-function value(id, fallback = "") { return $(id).value.trim() || fallback; }
+function value(id, fallback = "") { const el=$(id); return el ? el.value.trim() || fallback : fallback; }
+
+function populateRecorderCategories(preferred) {
+  const select = $("newCategory");
+  const settings = getRecorderSettings();
+  const categories = Object.keys(RECORDER_CATEGORY_MAP);
+  select.innerHTML = categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("");
+  select.value = categories.includes(preferred) ? preferred : categories.includes(settings.category) ? settings.category : "Keepstock - Seaga - PC/Data";
+  populateRecorderSubcategories(settings.subcategory);
+}
+
+function populateRecorderSubcategories(preferred) {
+  const category = value("newCategory", "Keepstock - Seaga - PC/Data");
+  const options = RECORDER_CATEGORY_MAP[category] || ["other"];
+  $("newSubcategory").innerHTML = `<option value="">-- None --</option>` + options.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("");
+  if (preferred && options.includes(preferred)) $("newSubcategory").value = preferred;
+}
+
+function getRecorderSettings() {
+  try { return JSON.parse(localStorage.getItem(RECORDER_SETTINGS_KEY)) || {}; } catch (e) { return {}; }
+}
+function saveRecorderSettings() {
+  localStorage.setItem(RECORDER_SETTINGS_KEY, JSON.stringify({ category:value("newCategory"), subcategory:value("newSubcategory"), assignmentGroup:value("assignmentGroup"), assignedTo:value("newAssignedTo") }));
+}
+
+function applyRecorderDefaults() {
+  const settings = getRecorderSettings();
+  populateRecorderCategories(settings.category);
+  $("recorderState").value = "New";
+  $("businessImpact").value = "Minor";
+  $("userImpact").value = "Single User: 1 user";
+  $("urgency").value = "Low";
+  $("assignmentGroup").value = settings.assignmentGroup || "T1 KeepStock";
+  $("newAssignedTo").value = settings.assignedTo || appState.settings?.name || "Clowie Moscare";
+  $("channel").value = "Phone";
+  $("knowledgeScope").value = "Knowledge & Catalog (All)";
+  updateRecorderPriority();
+  $("detailedDescription").value = buildRecorderDetailedDescription({ issue:"", steps:[], resolution:"" });
+  $("workNotes").value = RECORDER_WORK_NOTES_TEMPLATE;
+  renderRecorderDetectedSummary();
+  updateRecorderCounters();
+}
+
+function updateRecorderPriority() {
+  const business = value("businessImpact", "Minor");
+  const user = value("userImpact", "Single User: 1 user");
+  const urgency = value("urgency", "Low");
+  let score = 4;
+  if (business === "Critical" || urgency === "Critical" || user === "Enterprise-wide") score = 1;
+  else if (business === "Major" || urgency === "High" || user === "Site-wide") score = 2;
+  else if (business === "Moderate" || urgency === "Medium" || user.includes("Department")) score = 3;
+  $("priority").value = `${score} - ${["Critical","High","Moderate","Low"][score-1]}`;
+}
+
+function extractRecorderDetails(overwrite = false) {
+  const text = value("newRawNotes");
+  const defs = [
+    ["cribProgramId", /\b(?:crib\s*\/\s*program\s*(?:id|#)|crib\s*(?:id|#)|program\s*(?:id|#))\s*[:=#-]?\s*([A-Z0-9-]+)/i],
+    ["accountNumber", /\b(?:acct|account)\s*(?:#|number|num)?\s*[:=#-]?\s*([A-Z0-9-]{5,})/i],
+    ["deviceId", /\bdevice\s*id(?:\s*\(affected\))?\s*[:=#-]?\s*([A-Z0-9-]{4,})/i],
+    ["machineSerial", /\b(?:machine\s*)?serial(?:\s*number)?(?:\(s\))?\s*[:=#-]?\s*([A-Z0-9-]{5,})/i],
+    ["cradlepointSerial", /\b(?:cradlepoint|cp)\s*serial(?:\s*number)?\s*[:=#-]?\s*([A-Z0-9-]{5,})/i],
+    ["siteId", /\bsite\s*id\s*[:=#-]?\s*([A-Z0-9-]{3,})/i],
+    ["softwareVersion", /\b(?:software|sw)\s*version\s*[:=#-]?\s*([A-Z0-9._-]+)/i],
+    ["applicationVersion", /\b(?:application|app)\s*version\s*[:=#-]?\s*([A-Z0-9._-]+)/i],
+    ["phoneSoftwareVersion", /\bphone\s*(?:software|sw)\s*version\s*[:=#-]?\s*([A-Z0-9._-]+)/i],
+    ["imei", /\bimei\s*[:=#-]?\s*([0-9]{8,20})/i],
+    ["carrier", /\bcarrier\s*[:=-]?\s*([A-Za-z][A-Za-z0-9 &.-]{1,30})/i],
+    ["badgeReader", /\bbadge\s*reader\s*[:=-]?\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,30})/i],
+    ["phoneModel", /\bphone\s*model\s*[:=-]?\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i],
+    ["model", /\bmodel\s*[:=-]?\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i],
+    ["application", /\b(?:application|app)\s*[:=-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i],
+    ["timeIssueOccurred", /\b(?:time issue occurred|issue time)\s*[:=-]?\s*([^\n.;]+)/i],
+    ["programName", /\bprogram\s*name\s*[:=-]?\s*([^\n.;]+)/i],
+    ["companyName", /\b(?:company|customer)\s*name\s*[:=-]?\s*([^\n.;]+)/i]
+  ];
+  defs.forEach(([id, regex]) => {
+    const match=text.match(regex); if(!match) return;
+    if (overwrite || !value(id)) $(id).value = normalizeRecorderLine(match[1]).replace(/\s+(?:and|then)$/i, "");
+  });
+  renderRecorderDetectedSummary();
+  setRecorderSaveStatus("Unsaved changes");
+  return Object.fromEntries(RECORDER_DETAIL_FIELDS.map(([id])=>[id,value(id)]));
+}
+
+function renderRecorderDetectedSummary() {
+  const found = RECORDER_DETAIL_FIELDS.map(([id,label])=>({label,value:value(id)})).filter((item)=>item.value);
+  const box=$("detectedSummary");
+  if (!found.length) { box.className="detected-summary"; box.textContent="No details extracted yet."; return; }
+  box.className="detected-summary detected-list has-values";
+  box.innerHTML=found.map((item)=>`<span class="detected-chip"><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.value)}</span>`).join("");
+}
+
+function recorderSections(raw = value("newRawNotes")) {
+  const cleaned=cleanNotesText(raw);
+  const lines=cleaned.split(/\n+/).map(normalizeRecorderLine).filter(Boolean);
+  const metadata=/^(?:acct|account|device\s*id|machine\s*serial|serial|crib|program\s*(?:id|name)|company|customer\s*name|site\s*id|software\s*version|sw\s*version|application\s*version|app\s*version|imei|carrier|badge\s*reader|model|phone\s*model|time\s*issue)/i;
+  const resolutionRe=/(resolved|fixed|restored|working now|sync successful|synced successfully|successful|completed|issue cleared|no longer|customer confirmed|user confirmed)/i;
+  const actionRe=/\b(confirmed|verified|checked|located|looked|unplugged|plugged|pressed|restarted|rebooted|reset|synced|cleared|tested|opened|closed|sent|forwarded|advised|explained|asked|reviewed|contacted|power cycled|had user|investigated|escalated)\b/i;
+  const narrative=lines.filter((line)=>!metadata.test(line));
+  const resolution=([...narrative].reverse().find((line)=>resolutionRe.test(line)) || "Pending investigation or follow-up.");
+  const steps=unique(narrative.filter((line)=>actionRe.test(line) && line!==resolution));
+  const issue=narrative.find((line)=>!actionRe.test(line) && !resolutionRe.test(line)) || narrative[0] || "No issue description provided.";
+  return { cleaned, lines, issue, steps, resolution };
+}
+
+function buildRecorderDetailedDescription(sections=recorderSections()) {
+  const meta = RECORDER_DETAIL_FIELDS.map(([id,label])=>`${label}: ${value(id,"Not provided")}`).join("\n");
+  const steps = sections.steps.length ? sections.steps.map((line)=>`- ${sentence(line)}`).join("\n") : "- No troubleshooting steps captured yet.";
+  return `Template Header (DO NOT REMOVE)\n**Delete any unused sections below**\n\n------------------------------------------------------------\nSlack Thread URL:\n\nParent/PRB Template: [Update/add to section below with all required data from Parents/PRB's]\n\n${meta}\n\nCategory: ${value("newCategory","Not provided")}\nSubcategory: ${value("newSubcategory","Not provided")}\nChannel: ${value("channel","Phone")}\nLocation: ${value("newLocation","Not provided")}\n\nIssue:\n${sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution / Next Step:\n${sentence(sections.resolution)}`;
+}
+
+function buildRecorderWorkNotes(sections=recorderSections()) {
+  const steps = sections.steps.length ? sections.steps.map((line)=>`- ${sentence(line)}`).join("\n") : "- No troubleshooting steps captured yet.";
+  const escalation = /escalat|t2|tier 2/i.test(sections.cleaned) ? "Escalated for additional investigation." : "[Only if escalated to T2]";
+  return `Issue:\n${sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution:\n${sentence(sections.resolution)}\n\nReason for Escalation: ${escalation}`;
+}
+
+function buildRecorderShortDescription(sections=recorderSections()) {
+  const prefix=value("programName") || value("companyName") || "";
+  const issue=normalizeRecorderLine(sections.issue).replace(/^(caller|customer|user|rep)\s+/i, "");
+  const text=prefix ? `${prefix} - ${issue}` : issue;
+  return (text || "Incident support request").slice(0,180);
+}
+
+function refreshRecorderDescriptions({ cleanNotes=false }={}) {
+  if (cleanNotes) $("newRawNotes").value=cleanNotesText($("newRawNotes").value);
+  extractRecorderDetails(false);
+  const sections=recorderSections();
+  if (!value("newTitle")) $("newTitle").value=buildRecorderShortDescription(sections);
+  $("detailedDescription").value=buildRecorderDetailedDescription(sections);
+  $("workNotes").value=buildRecorderWorkNotes(sections);
+  updateRecorderCounters();
+  return sections;
+}
+
+function generateTicketFromForm() {
+  const sections=refreshRecorderDescriptions({cleanNotes:true});
+  const ticket=`Short Description:\n${value("newTitle",buildRecorderShortDescription(sections))}\n\nDetailed Description:\n${value("detailedDescription")}\n\nWork Notes:\n${value("workNotes")}`;
+  $("generatedTicket").value=ticket;
+  $("recorderTimeSaved").textContent=`Generated ${new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}`;
+  setRecorderSaveStatus("Generated");
+  showToast("Clean ticket generated from the call notes.");
+}
+
+function updateRecorderCounter(id,counterId) {
+  const max=$(id).maxLength > 0 ? $(id).maxLength : 4000;
+  $(counterId).textContent=`${Math.max(0,max-$(id).value.length)} characters remaining`;
+}
+function updateRecorderCounters(){ updateRecorderCounter("detailedDescription","detailedCounter"); updateRecorderCounter("workNotes","workCounter"); }
+
+function getRecorderFormData() {
+  const data={};
+  RECORDER_FORM_IDS.forEach((id)=>{ const el=$(id); if(el) data[id]=el.value; });
+  data.rawNotes=data.newRawNotes || "";
+  data.shortDescription=data.newTitle || "";
+  data.category=data.newCategory || "";
+  data.subcategory=data.newSubcategory || "";
+  data.state=data.recorderState || "New";
+  data.assignedTo=data.newAssignedTo || "";
+  data.location=data.newLocation || "";
+  data.ticketOutput=data.generatedTicket || "";
+  return data;
+}
+
+function setRecorderFormData(data={}) {
+  const category=data.newCategory || data.category;
+  populateRecorderCategories(category);
+  if (data.newSubcategory || data.subcategory) populateRecorderSubcategories(data.newSubcategory || data.subcategory);
+  RECORDER_FORM_IDS.forEach((id)=>{ const el=$(id); if(!el || id==="newCategory" || id==="newSubcategory" || el.disabled) return; if(data[id]!==undefined) el.value=data[id] || ""; });
+  if (data.rawNotes!==undefined) $("newRawNotes").value=data.rawNotes || "";
+  if (data.shortDescription!==undefined) $("newTitle").value=data.shortDescription || "";
+  if (data.state!==undefined) $("recorderState").value=data.state || "New";
+  if (data.assignedTo!==undefined) $("newAssignedTo").value=data.assignedTo || "";
+  if (data.location!==undefined) $("newLocation").value=data.location || "";
+  if (data.ticketOutput!==undefined) $("generatedTicket").value=data.ticketOutput || "";
+  updateRecorderPriority(); renderRecorderDetectedSummary(); updateRecorderCounters(); refreshIcons();
+}
+
+function getRecorderDrafts(){ try{return JSON.parse(localStorage.getItem(RECORDER_DRAFT_STORAGE_KEY))||[];}catch(e){return [];} }
+function saveRecorderDraft(){
+  const data=getRecorderFormData();
+  const draft={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),createdAt:new Date().toISOString(),data};
+  localStorage.setItem(RECORDER_DRAFT_STORAGE_KEY,JSON.stringify([draft,...getRecorderDrafts()].slice(0,20)));
+  saveRecorderSettings(); renderRecorderDrafts(); setRecorderSaveStatus("Saved"); showToast("Draft saved in this browser.");
+}
+function renderRecorderDrafts(){
+  const drafts=getRecorderDrafts(); const el=$("recorderDraftList"); if(!el)return;
+  if(!drafts.length){el.textContent="No saved drafts yet.";return;}
+  el.innerHTML=drafts.map((draft)=>{const d=draft.data||{}; const title=d.shortDescription||d.newTitle||d.programName||d.category||"Untitled incident"; const preview=(d.rawNotes||d.workNotes||"No notes saved.").slice(0,120); return `<article class="recorder-draft-card"><div><strong>${escapeHtml(title)}</strong><p>${escapeHtml(new Date(draft.createdAt).toLocaleString())} · ${escapeHtml(d.state||"New")} · ${escapeHtml(d.priority||"No priority")}</p><p>${escapeHtml(preview)}${preview.length>=120?"...":""}</p></div><div class="recorder-draft-actions"><button type="button" data-recorder-draft-action="load" data-id="${escapeHtml(draft.id)}">Load</button><button class="danger-text" type="button" data-recorder-draft-action="delete" data-id="${escapeHtml(draft.id)}">Delete</button></div></article>`;}).join("");
+}
+function handleRecorderDraftAction(action,id){
+  const drafts=getRecorderDrafts(); const draft=drafts.find((d)=>d.id===id);
+  if(action==="load"&&draft){setRecorderFormData(draft.data);setRecorderSaveStatus("Loaded");showToast("Draft loaded.");}
+  if(action==="delete"){localStorage.setItem(RECORDER_DRAFT_STORAGE_KEY,JSON.stringify(drafts.filter((d)=>d.id!==id)));renderRecorderDrafts();showToast("Draft deleted.");}
+}
+function deleteRecorderDrafts(){ if(!getRecorderDrafts().length)return; if(!confirm("Delete all saved IncidentRecorder drafts from this browser?"))return; localStorage.removeItem(RECORDER_DRAFT_STORAGE_KEY);renderRecorderDrafts();setRecorderSaveStatus("Drafts deleted"); }
+function setRecorderSaveStatus(text){ const el=$("recorderSaveStatus"); if(el)el.textContent=text; }
 
 function nextIncidentId() {
   const nums = appState.incidents.map((incident) => Number(String(incident.id).match(/(\d+)$/)?.[1] || 0));
   return `INC-${String(Math.max(6, ...nums) + 1).padStart(3, "0")}`;
 }
+function recorderSeverity(){ const p=value("priority"); if(/^1|^2/.test(p)||/critical|high/i.test(value("urgency")))return "high"; if(/^4/.test(p)&&/low/i.test(value("urgency")))return "low"; return "medium"; }
+function recorderStatus(){ const state=value("recorderState","New").toLowerCase(); if(state.includes("resolved")||state.includes("closed"))return "resolved"; if(state.includes("hold"))return "pending"; return "investigating"; }
 
-function saveNewIncident(event) {
-  event.preventDefault();
-  const title = value("newTitle");
-  if (!title) { showToast("Add a title before saving the incident."); $("newTitle").focus(); return; }
-  if (!$("generatedTicket").value.trim()) generateTicketFromForm();
-  const incident = {
-    id: nextIncidentId(), title,
-    severity: $("newSeverity").value,
-    date: new Date().toISOString().slice(0, 10),
-    status: $("newStatus").value,
-    assignedTo: value("newAssignedTo", "Clowie Moscare"),
-    category: $("newCategory").value,
-    location: value("newLocation", "Not provided"),
-    account: value("newAccount"), device: value("newDevice"),
-    notes: $("generatedTicket").value.trim() || $("newRawNotes").value.trim()
+function saveNewIncident(event, forcedState) {
+  if(event?.preventDefault) event.preventDefault();
+  if(forcedState) $("recorderState").value=forcedState;
+  if(!value("newTitle") || !value("detailedDescription") || !value("workNotes")) generateTicketFromForm();
+  const title=value("newTitle");
+  if(!title){showToast("Add rough notes or a short description before saving.");$("newTitle").focus();return;}
+  if(!value("newSubcategory")){showToast("Choose a subcategory before saving the incident.");$("newSubcategory").focus();return;}
+  if(!value("generatedTicket")) generateTicketFromForm();
+  const incident={
+    id:nextIncidentId(), title, severity:recorderSeverity(), date:new Date().toISOString().slice(0,10), status:recorderStatus(),
+    assignedTo:value("newAssignedTo","Clowie Moscare"), category:value("newCategory","Technical / Other"), location:value("newLocation","Not provided"),
+    notes:value("generatedTicket")||value("detailedDescription")||value("newRawNotes"), account:value("accountNumber"), device:value("deviceId"), subcategory:value("newSubcategory"), priority:value("priority"), rawNotes:value("newRawNotes"), detailedDescription:value("detailedDescription"), workNotes:value("workNotes")
   };
-  appState.incidents.unshift(incident);
-  saveAppState();
-  renderIncidents();
-  $("newIncidentDialog").close();
-  navigate("incidents");
-  showToast(`${incident.id} saved locally.`);
+  appState.incidents.unshift(incident); saveAppState(); saveRecorderSettings(); renderIncidents(); updateMetrics(); stopRecorderVoiceNotes(); $("newIncidentDialog").close(); navigate("incidents"); showToast(`${incident.id} saved to the dashboard.`);
 }
 
+function resetRecorder(){
+  if(!confirm("Reset all New Incident fields, rough notes, and generated ticket?"))return;
+  stopRecorderVoiceNotes(); $("newIncidentForm").reset(); $("generatedTicket").value=""; applyRecorderDefaults(); setRecorderSaveStatus("Not saved"); showToast("New Incident workspace reset.");
+}
+
+function appendRecorderNote(text){ const current=value("newRawNotes"); $("newRawNotes").value=current?`${current}\n${text}`:text; setRecorderSaveStatus("Unsaved changes"); }
+function renderRecorderSnippets(){ const el=$("snippetRow"); if(el)el.innerHTML=RECORDER_SNIPPETS.map((s)=>`<button type="button" data-recorder-snippet="${escapeHtml(s)}">+ ${escapeHtml(s)}</button>`).join(""); }
+function isLocalFilePage(){ return window.location.protocol==="file:"; }
+
+function setupRecorderVoiceNotes(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; recorderRecognition=null; recorderShouldRestartVoice=false; recorderVoiceListening=false;
+  const dot=$("voiceDot"),start=$("startVoiceBtn"),pause=$("pauseVoiceBtn"),stop=$("stopVoiceBtn");
+  dot.classList.remove("ready","listening"); pause.disabled=true; stop.disabled=true;
+  if(!SR){$("voiceStatus").textContent="Voice notes are not supported in this browser. You can still type rough notes.";start.disabled=true;return;}
+  if(isLocalFilePage()){$("voiceStatus").textContent="Voice notes need HTTPS or localhost. Upload to GitHub Pages to use microphone dictation.";start.disabled=true;return;}
+  dot.classList.add("ready");start.disabled=false;$("voiceStatus").textContent="Voice notes are off. Click Start voice notes when you are ready to allow microphone access.";
+}
+function initRecorderVoiceNotes(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR||isLocalFilePage()){setupRecorderVoiceNotes();return false;} if(recorderRecognition)return true;
+  recorderRecognition=new SR(); recorderRecognition.continuous=true; recorderRecognition.interimResults=true; recorderRecognition.lang="en-US";
+  recorderRecognition.onstart=()=>{recorderVoiceListening=true;$("startVoiceBtn").disabled=true;$("pauseVoiceBtn").disabled=false;$("stopVoiceBtn").disabled=false;$("voiceDot").classList.add("listening");$("voiceStatus").textContent="Listening. Speak short call notes.";};
+  recorderRecognition.onresult=(event)=>{let interim="",finalText="";for(let i=event.resultIndex;i<event.results.length;i++){const t=event.results[i][0].transcript.trim();if(event.results[i].isFinal)finalText+=`${t}\n`;else interim+=t;}if(finalText.trim())appendRecorderNote(finalText.trim());$("interimTranscript").textContent=interim||"Interim transcript will appear here while listening.";};
+  recorderRecognition.onerror=(event)=>{recorderShouldRestartVoice=false;$("voiceDot").classList.remove("listening");$("startVoiceBtn").disabled=false;$("pauseVoiceBtn").disabled=true;$("stopVoiceBtn").disabled=true;$("voiceStatus").textContent=["not-allowed","service-not-allowed","audio-capture"].includes(event.error)?"Microphone access was blocked or unavailable. You can keep typing rough notes.":`Voice note error: ${event.error}. You can keep typing notes.`;};
+  recorderRecognition.onend=()=>{recorderVoiceListening=false;$("voiceDot").classList.remove("listening");$("interimTranscript").textContent="Interim transcript will appear here while listening.";if(recorderShouldRestartVoice){try{recorderRecognition.start();}catch(e){recorderShouldRestartVoice=false;}}else{$("startVoiceBtn").disabled=false;$("pauseVoiceBtn").disabled=true;$("stopVoiceBtn").disabled=true;$("voiceStatus").textContent="Voice notes stopped.";}};
+  return true;
+}
+function startRecorderVoiceNotes(){ if(isLocalFilePage()){setupRecorderVoiceNotes();showToast("Voice notes need HTTPS or localhost. They will work on GitHub Pages.");return;} if(!initRecorderVoiceNotes())return;recorderShouldRestartVoice=true;if(recorderVoiceListening)return;try{recorderRecognition.start();}catch(e){$("voiceStatus").textContent="Voice notes are already starting.";} }
+function pauseRecorderVoiceNotes(){recorderShouldRestartVoice=false;if(recorderRecognition){try{recorderRecognition.stop();}catch(e){}}$("voiceStatus").textContent="Voice notes paused.";}
+function stopRecorderVoiceNotes(){recorderShouldRestartVoice=false;if(recorderRecognition){try{recorderRecognition.stop();}catch(e){}}recorderVoiceListening=false;if($("startVoiceBtn"))$("startVoiceBtn").disabled=isLocalFilePage();if($("pauseVoiceBtn"))$("pauseVoiceBtn").disabled=true;if($("stopVoiceBtn"))$("stopVoiceBtn").disabled=true;if($("voiceDot"))$("voiceDot").classList.remove("listening");if($("voiceStatus"))$("voiceStatus").textContent=isLocalFilePage()?"Voice notes need HTTPS or localhost.":"Voice notes stopped.";}
 async function copyText(text, message = "Copied to clipboard.") {
   if (!text) { showToast("There is nothing to copy yet."); return; }
   try { await navigator.clipboard.writeText(text); showToast(message); }
@@ -449,10 +713,42 @@ function wireEvents() {
   ["dragenter","dragover"].forEach((name)=>zone.addEventListener(name,(e)=>{e.preventDefault();zone.classList.add("dragging");}));
   ["dragleave","drop"].forEach((name)=>zone.addEventListener(name,(e)=>{e.preventDefault();zone.classList.remove("dragging");})); zone.addEventListener("drop",(e)=>simulateUpload(e.dataTransfer.files));
 
-  $("cleanNotesBtn").addEventListener("click",()=>{ $("newRawNotes").value=cleanNotesText($("newRawNotes").value); showToast("Rough notes cleaned."); });
-  $("generateTicketBtn").addEventListener("click",generateTicketFromForm); $("newIncidentForm").addEventListener("submit",saveNewIncident);
+  $("cleanNotesBtn").addEventListener("click",()=>{ $("newRawNotes").value=cleanNotesText($("newRawNotes").value); setRecorderSaveStatus("Unsaved changes"); showToast("Rough notes cleaned."); });
+  $("extractDetailsBtn").addEventListener("click",()=>{ extractRecorderDetails(false); const sections=recorderSections(); $("detailedDescription").value=buildRecorderDetailedDescription(sections); updateRecorderCounters(); showToast("Details extracted. Review anything that looks wrong."); });
+  $("generateTicketBtn").addEventListener("click",generateTicketFromForm);
+  $("saveRecorderDraftBtn").addEventListener("click",saveRecorderDraft);
+  $("submitIncidentBtn").addEventListener("click",()=>saveNewIncident(null,"In Progress"));
+  $("resolveIncidentBtn").addEventListener("click",()=>saveNewIncident(null,"Resolved"));
+  $("saveIncidentBtn").addEventListener("click",()=>saveNewIncident(null));
+  $("resetRecorderBtn").addEventListener("click",resetRecorder);
+  $("newIncidentForm").addEventListener("submit",saveNewIncident);
+
+  $("startVoiceBtn").addEventListener("click",startRecorderVoiceNotes);
+  $("pauseVoiceBtn").addEventListener("click",pauseRecorderVoiceNotes);
+  $("stopVoiceBtn").addEventListener("click",stopRecorderVoiceNotes);
+
+  $("snippetRow").addEventListener("click",(event)=>{ const btn=event.target.closest("[data-recorder-snippet]"); if(!btn)return; appendRecorderNote(btn.dataset.recorderSnippet); showToast("Snippet added to rough notes."); });
+  $("recorderDraftList").addEventListener("click",(event)=>{ const btn=event.target.closest("[data-recorder-draft-action]"); if(!btn)return; handleRecorderDraftAction(btn.dataset.recorderDraftAction,btn.dataset.id); });
+  $("deleteRecorderDraftsBtn").addEventListener("click",deleteRecorderDrafts);
+
+  $("newCategory").addEventListener("change",()=>{ populateRecorderSubcategories(); saveRecorderSettings(); setRecorderSaveStatus("Unsaved changes"); });
+  $("newSubcategory").addEventListener("change",()=>{ saveRecorderSettings(); setRecorderSaveStatus("Unsaved changes"); });
+  ["businessImpact","userImpact","urgency"].forEach((id)=>$(id).addEventListener("change",()=>{ updateRecorderPriority(); setRecorderSaveStatus("Unsaved changes"); }));
+  RECORDER_FORM_IDS.forEach((id)=>{ const el=$(id); if(!el)return; el.addEventListener("input",()=>{ setRecorderSaveStatus("Unsaved changes"); if(RECORDER_DETAIL_FIELDS.some(([fieldId])=>fieldId===id))renderRecorderDetectedSummary(); }); });
+  $("detailedDescription").addEventListener("input",()=>updateRecorderCounter("detailedDescription","detailedCounter"));
+  $("workNotes").addEventListener("input",()=>updateRecorderCounter("workNotes","workCounter"));
+
+  $("resetDetailedBtn").addEventListener("click",()=>{ $("detailedDescription").value=buildRecorderDetailedDescription(recorderSections()); updateRecorderCounters(); showToast("Detailed description template reset."); });
+  $("resetWorkBtn").addEventListener("click",()=>{ $("workNotes").value=RECORDER_WORK_NOTES_TEMPLATE; updateRecorderCounters(); showToast("Work notes template reset."); });
+  $("copyDetailedBtn").addEventListener("click",()=>copyText($("detailedDescription").value,"Detailed description copied."));
+  $("copyWorkBtn").addEventListener("click",()=>copyText($("workNotes").value,"Work notes copied."));
   $("copyGeneratedBtn").addEventListener("click",()=>copyText($("generatedTicket").value,"Generated ticket copied."));
+  $("copyWorkFromOutputBtn").addEventListener("click",()=>copyText($("workNotes").value,"Work notes copied."));
+  $("copyDetailedFromOutputBtn").addEventListener("click",()=>copyText($("detailedDescription").value,"Detailed description copied."));
   $("downloadGeneratedBtn").addEventListener("click",()=>downloadText($("generatedTicket").value,`${(value("newTitle","incident").replace(/[^a-z0-9]+/gi,"-").toLowerCase())}-ticket.txt`));
+
+  $("newIncidentDialog").addEventListener("close",stopRecorderVoiceNotes);
+  document.addEventListener("keydown",(event)=>{ if(!$("newIncidentDialog").open || !(event.ctrlKey||event.metaKey))return; if(event.key==="Enter"){event.preventDefault();generateTicketFromForm();} if(event.key.toLowerCase()==="s"){event.preventDefault();saveRecorderDraft();} if(event.shiftKey&&event.key.toLowerCase()==="c"){event.preventDefault();copyText($("generatedTicket").value,"Generated ticket copied.");} });
 
   $("saveProfileBtn").addEventListener("click",()=>{ appState.settings={...(appState.settings||{}),name:value("profileName"),email:value("profileEmail")}; saveAppState(); showToast("Profile settings saved locally."); });
   $("updatePasswordBtn").addEventListener("click",()=>showToast("Static demo: password changes require a backend identity provider."));
