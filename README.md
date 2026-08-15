@@ -1,88 +1,44 @@
 # IncidentRecorder
 
-IncidentRecorder is a simple browser-based app that helps turn rough support-call notes into a cleaner incident ticket draft.
+IncidentRecorder is a local-first surveillance incident management dashboard. The interface is implemented from the SecureWatch Figma design while keeping the repository's lightweight static HTML/CSS/JavaScript architecture.
 
-## Current version
+## What is included
 
-This is the first static web app version. It runs fully in the browser and does not require a backend server.
+- Dark SecureWatch dashboard shell with collapsible navigation.
+- Dashboard metrics and responsive canvas charts.
+- Incident management table with severity/status/search filters.
+- Incident detail dialog with local status updates.
+- **Add New Incident** recorder that cleans rough notes, generates a structured ticket, copies/downloads the result, and saves the incident in `localStorage`.
+- Video evidence upload UI with local metadata simulation and playback detail dialog.
+- Analytics view with trend, category, resolution-time, and location charts.
+- Settings view with local profile preferences and JSON export.
+- Responsive mobile navigation and layouts.
+- Migration support for older IncidentRecorder browser drafts stored under the previous local-storage keys.
 
-## Features
+## Privacy
 
-- Capture caller details, callback number, department/location, device/asset, application/service, category, priority, and status.
-- Type rough live call notes while working the issue.
-- Generate a structured ticket draft with issue, impact, troubleshooting performed, findings, resolution, and next steps.
-- Edit the generated ticket before copying or downloading it.
-- Save and reload drafts from the browser's local storage.
-- Delete saved drafts from the browser.
+This version remains a static browser application. Incident records, settings, and simulated upload metadata are stored in the current browser's `localStorage`. No incident text or uploaded video bytes are sent to a backend by this repository.
 
-## Privacy note
-
-This version does not upload call notes anywhere. Drafts are stored only in the current browser's `localStorage`. Because incident notes can contain names, phone numbers, device names, or internal system information, review your company's data handling and call recording policies before adding cloud storage, AI generation, or audio transcription.
+The Lucide icon library is loaded from its pinned CDN build for the interface icons. If the icon CDN is unavailable, the application functionality still loads; only icons may be absent until the CDN becomes reachable.
 
 ## Run locally
 
-Open `index.html` in a modern browser.
+Open `index.html` in a modern browser. For the most browser-consistent behavior, you can also serve the folder locally:
+
+```bash
+python3 -m http.server 8080
+```
+
+Then open `http://localhost:8080`.
 
 ## Deploy to GitHub Pages
 
-This repository includes `.github/workflows/pages.yml`, which deploys the static site using GitHub Actions.
+This project is static, so the repository root can be deployed directly with GitHub Pages. If you already have a Pages workflow in your GitHub repository, keep using it with these updated root files.
 
-Expected production URL after deployment:
-
-```text
-https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/
-```
-
-### Option 1: one-command deploy with GitHub CLI
-
-From the `IncidentRecorder/` project folder:
-
-```bash
-GITHUB_OWNER=your-github-username ./deploy-to-github.sh your-repo-name
-```
-
-The script will:
-
-1. Create or reuse `your-github-username/your-repo-name`.
-2. Commit the app files.
-3. Push to the `main` branch.
-4. Enable GitHub Pages with GitHub Actions as the source.
-5. Trigger the Pages workflow.
-
-### Option 2: manual deploy commands
-
-```bash
-gh auth login
-git init -b main
-git add .
-git commit -m "Initial IncidentRecorder web app"
-gh repo create your-github-username/your-repo-name --public --source=. --remote=origin --push
-gh api --method POST repos/your-github-username/your-repo-name/pages -f build_type=workflow || gh api --method PUT repos/your-github-username/your-repo-name/pages -f build_type=workflow
-gh workflow run pages.yml --repo your-github-username/your-repo-name
-```
-
-Then check:
+## Main files
 
 ```text
-https://github.com/your-github-username/your-repo-name/actions
+index.html   Application shell and all five views
+styles.css   Figma-inspired responsive visual system
+app.js       Navigation, local data, ticket generation, uploads, dialogs, and charts
 ```
-
-## Files
-
-```text
-index.html
-styles.css
-app.js
-.github/workflows/pages.yml
-.nojekyll
-README.md
-deploy-to-github.sh
-```
-
-## Suggested next version
-
-- Add an AI backend to generate better tickets from messy notes.
-- Add issue-specific templates.
-- Add call duration tracking.
-- Add export formats for ServiceNow, Jira, or another ticketing system.
-- Add audio transcription only after confirming company recording and privacy requirements.
