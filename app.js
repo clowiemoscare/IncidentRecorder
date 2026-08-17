@@ -297,6 +297,11 @@ const RECORDER_FORM_IDS = [
 let recorderRecognition = null;
 let recorderShouldRestartVoice = false;
 let recorderVoiceListening = false;
+let recorderVoiceStarting = false;
+let recorderVoicePaused = false;
+let recorderVoiceFatalError = false;
+let recorderVoiceRestartTimer = null;
+let recorderVoiceRestartAttempts = 0;
 
 function openNewIncident() {
   stopRecorderVoiceNotes();
@@ -315,15 +320,41 @@ function normalizeRecorderLine(text) {
   return String(text || "").replace(/[\u2022\u00b7]/g, " ").replace(/^[-*]+\s*/, "").replace(/\s+/g, " ").trim();
 }
 
+function normalizeRecorderTerms(text) {
+  return normalizeRecorderLine(text)
+    .replace(/\b(?:keep\s*stock|keeps\s*stock|keepsake|keep\s*stake|keeps\s*up|keep\s*up)\b/gi, "KeepStock")
+    .replace(/\baccess\s+skip\b/gi, "access KeepStock")
+    .replace(/\bclear\s*spider\b/gi, "ClearSpider")
+    .replace(/\bgrainger\s*\.\s*com\b/gi, "Grainger.com");
+}
+
+function isRecorderChatter(line) {
+  const text = normalizeRecorderTerms(line).toLowerCase();
+  if (!text) return true;
+  if (/password reset|clearspider|reset email|sent.*teams|right account/.test(text)) return false;
+  const chatter = [
+    /^(?:hi|hello|hey|thanks|thank you|awesome|okay|ok|sure|gotcha|all right|alright)\b[.!]?$/,
+    /\b(?:first and last name|confirm your .*id|how can i help you today|what(?:'s| is) the account number|who was the contact|what email address|what user id do you use)\b/,
+    /\b(?:bear with me|just a second|just a moment|let me look you up|you hear me|can you hear me)\b/,
+    /^(?:do you|can you|could you|would you)\b.*\?*$/,
+    /\blet me know when (?:you(?:'re| are)|you got|you have)\b/,
+    /^(?:and )?whenever you click\b|\bdoes it ask you for\b/,
+    /^(?:you got to|you need to|i(?:'m| am) going to need you to) click on that link\b/,
+    /\bgo to page number\b|\bpage number (?:three|four|five|\d+)\b/,
+    /\bthis is the most important(?: part)?\b/
+  ];
+  return chatter.some((re) => re.test(text));
+}
+
 function cleanNotesText(raw) {
   const filler = /^(hi|hello|hey|thanks|thank you|okay|ok|um|uh|hmm|so|basically|you know|good morning|good afternoon|good evening)\b/i;
   const lines = String(raw || "")
     .replace(/\r/g, "\n")
     .replace(/[\u2022\u00b7]/g, "\n")
     .split(/\n|;|(?<=[.!?])\s+/)
-    .map(normalizeRecorderLine)
+    .map(normalizeRecorderTerms)
     .filter(Boolean)
-    .filter((line) => !filler.test(line));
+    .filter((line) => !filler.test(line) || line.split(/\s+/).length > 5);
   return unique(lines).join("\n");
 }
 
@@ -337,7 +368,7 @@ function unique(items) {
 }
 
 function sentence(text) {
-  const clean = normalizeRecorderLine(text);
+  const clean = normalizeRecorderTerms(text);
   if (!clean) return "Not provided.";
   const capped = clean[0].toUpperCase() + clean.slice(1);
   return /[.!?]$/.test(capped) ? capped : `${capped}.`;
@@ -397,10 +428,11 @@ function updateRecorderPriority() {
 }
 
 function extractRecorderDetails(overwrite = false) {
-  const text = value("newRawNotes");
+  const text = normalizeRecorderTerms(value("newRawNotes"));
   const defs = [
     ["cribProgramId", /\b(?:crib\s*\/\s*program\s*(?:id|#)|crib\s*(?:id|#)|program\s*(?:id|#))\s*[:=#-]?\s*([A-Z0-9-]+)/i],
-    ["accountNumber", /\b(?:acct|account)\s*(?:#|number|num)?\s*[:=#-]?\s*([A-Z0-9-]{5,})/i],
+    ["accountNumber", /\b(?:acct|account)\s*(?:#|number|num)?\s*[:=#-]?\s*((?=[A-Z0-9-]*\d)[A-Z0-9-]{4,})/i],
+    ["accountNumber", /\b([0-9]{4,})\s+account\b/i],
     ["deviceId", /\bdevice\s*id(?:\s*\(affected\))?\s*[:=#-]?\s*([A-Z0-9-]{4,})/i],
     ["machineSerial", /\b(?:machine\s*)?serial(?:\s*number)?(?:\(s\))?\s*[:=#-]?\s*([A-Z0-9-]{5,})/i],
     ["cradlepointSerial", /\b(?:cradlepoint|cp)\s*serial(?:\s*number)?\s*[:=#-]?\s*([A-Z0-9-]{5,})/i],
@@ -420,7 +452,7 @@ function extractRecorderDetails(overwrite = false) {
   ];
   defs.forEach(([id, regex]) => {
     const match=text.match(regex); if(!match) return;
-    if (overwrite || !value(id)) $(id).value = normalizeRecorderLine(match[1]).replace(/\s+(?:and|then)$/i, "");
+    if (overwrite || !value(id)) $(id).value = normalizeRecorderTerms(match[1]).replace(/\s+(?:and|then)$/i, "");
   });
   renderRecorderDetectedSummary();
   setRecorderSaveStatus("Unsaved changes");
@@ -435,36 +467,96 @@ function renderRecorderDetectedSummary() {
   box.innerHTML=found.map((item)=>`<span class="detected-chip"><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.value)}</span>`).join("");
 }
 
+function recorderIssueSummary(lines) {
+  const candidates = lines.filter((line) => !isRecorderChatter(line));
+  const strong = /\b(?:unable to|not able to|can(?:not|'t)|could(?: not|n't)|fails? to|failed to|cannot|locked out|not working|issue with|problem with|error|access|log ?in|login)\b/i;
+  const action = /\b(?:sent|clicked|click|submit|requested|reset|advised|explained|asked|reviewed|go to|page number|follow step|receive an email)\b/i;
+  let best = "";
+  let bestScore = -999;
+  candidates.forEach((line, index) => {
+    let score = 0;
+    if (strong.test(line)) score += 8;
+    if (/\b(?:unable to|not able to|can(?:not|'t)|cannot|fails? to|failed to|locked out)\b/i.test(line)) score += 7;
+    if (/\bKeepStock\b/i.test(line)) score += 3;
+    if (/\b(?:customer|user|caller|[A-Z][a-z]+\s+[A-Z][a-z]+)\b/.test(line)) score += 1;
+    if (action.test(line)) score -= 5;
+    if (line.length > 220) score -= 2;
+    score -= index * 0.02;
+    if (score > bestScore) { bestScore = score; best = line; }
+  });
+  best = normalizeRecorderTerms(best || candidates[0] || "");
+  best = best.replace(/^(.{2,60}?)\s+so\s+\1\s+/i, "$1 ");
+  best = best.replace(/\b(?:is not able to|was not able to)\b/i, "is unable to");
+  best = best.replace(/\b(?:can not|cannot|can't)\b/i, "is unable to");
+  best = best.replace(/\s+/g, " ").trim();
+  return best;
+}
+
+function summarizeRecorderStep(line) {
+  const text = normalizeRecorderTerms(line);
+  const lower = text.toLowerCase();
+  if (/teams/.test(lower) && /(?:job|document|message|sent)/.test(lower)) return "Sent the KeepStock password-reset job aid via Teams.";
+  if (/clearspider/.test(lower) && /email/.test(lower) && /(?:submit|request|input|enter)/.test(lower)) return "Directed the caller to submit a ClearSpider password-reset request using the customer's email.";
+  if (/receive an email|reset (?:his|her|their|the) password|reset password/.test(lower) && /email|link/.test(lower)) return "Advised that the customer will receive a reset email and must complete the reset link and remaining instructions.";
+  if (/step\s*(?:1|one).*step\s*(?:7|seven)|follow step/.test(lower)) return "Advised the customer to follow the password-reset instructions through the final step.";
+  if (/right account/.test(lower) && /KeepStock/.test(text)) return "Confirmed the correct Grainger.com account should be selected before opening KeepStock.";
+  if (/password reset/.test(lower) && /required|request/.test(lower)) return "Confirmed a KeepStock password reset is required.";
+  let concise = text
+    .replace(/^(?:all right|alright|okay|ok|gotcha|awesome|just a moment|just a second)[, ]*/i, "")
+    .replace(/\b(?:let me know when[^.?!]*|bear with me[^.?!]*)\b/gi, "")
+    .replace(/\s+/g, " ").trim();
+  if (!concise || isRecorderChatter(concise)) return "";
+  if (concise.length > 170) concise = `${concise.slice(0, 167).replace(/\s+\S*$/, "")}...`;
+  return sentence(concise);
+}
+
 function recorderSections(raw = value("newRawNotes")) {
   const cleaned=cleanNotesText(raw);
-  const lines=cleaned.split(/\n+/).map(normalizeRecorderLine).filter(Boolean);
+  const lines=cleaned.split(/\n+/).map(normalizeRecorderTerms).filter(Boolean);
   const metadata=/^(?:acct|account|device\s*id|machine\s*serial|serial|crib|program\s*(?:id|name)|company|customer\s*name|site\s*id|software\s*version|sw\s*version|application\s*version|app\s*version|imei|carrier|badge\s*reader|model|phone\s*model|time\s*issue)/i;
   const resolutionRe=/(resolved|fixed|restored|working now|sync successful|synced successfully|successful|completed|issue cleared|no longer|customer confirmed|user confirmed)/i;
-  const actionRe=/\b(confirmed|verified|checked|located|looked|unplugged|plugged|pressed|restarted|rebooted|reset|synced|cleared|tested|opened|closed|sent|forwarded|advised|explained|asked|reviewed|contacted|power cycled|had user|investigated|escalated)\b/i;
+  const actionRe=/\b(confirmed|verified|checked|located|looked|unplugged|plugged|pressed|restarted|rebooted|reset|synced|cleared|tested|opened|closed|sent|forwarded|advised|explained|asked|reviewed|contacted|power cycled|had user|investigated|escalated|click|clicked|submit|requested|receive an email|follow step|right account)\b/i;
   const narrative=lines.filter((line)=>!metadata.test(line));
-  const resolution=([...narrative].reverse().find((line)=>resolutionRe.test(line)) || "Pending investigation or follow-up.");
-  const steps=unique(narrative.filter((line)=>actionRe.test(line) && line!==resolution));
-  const issue=narrative.find((line)=>!actionRe.test(line) && !resolutionRe.test(line)) || narrative[0] || "No issue description provided.";
-  return { cleaned, lines, issue, steps, resolution };
+  const meaningful=narrative.filter((line)=>!isRecorderChatter(line));
+  const explicitResolution=[...meaningful].reverse().find((line)=>resolutionRe.test(line));
+  const passwordResetContext=meaningful.some((line)=>/password reset|reset email|ClearSpider/i.test(line));
+  const resolution=explicitResolution || (passwordResetContext ? "Customer to complete the KeepStock password reset using the emailed reset link." : "Pending investigation or follow-up.");
+  const rawSteps=meaningful.filter((line)=>actionRe.test(line) && line!==explicitResolution);
+  const steps=unique(rawSteps.map(summarizeRecorderStep).filter(Boolean)).slice(0,5);
+  const issueSummary=recorderIssueSummary(meaningful);
+  const issue=value("newSubcategory") || issueSummary || "No issue description provided";
+  return { cleaned, lines, issue, issueSummary, steps, resolution };
 }
 
 function buildRecorderDetailedDescription(sections=recorderSections()) {
-  const meta = RECORDER_DETAIL_FIELDS.map(([id,label])=>`${label}: ${value(id,"Not provided")}`).join("\n");
+  const meta = RECORDER_DETAIL_FIELDS
+    .map(([id,label])=>[label,value(id)])
+    .filter(([,fieldValue])=>fieldValue)
+    .map(([label,fieldValue])=>`${label}: ${fieldValue}`);
+  const routing = [
+    ["Category", value("newCategory")],
+    ["Subcategory", value("newSubcategory")],
+    ["Channel", value("channel")],
+    ["Location", value("newLocation")]
+  ].filter(([,fieldValue])=>fieldValue).map(([label,fieldValue])=>`${label}: ${fieldValue}`);
   const steps = sections.steps.length ? sections.steps.map((line)=>`- ${sentence(line)}`).join("\n") : "- No troubleshooting steps captured yet.";
-  return `Template Header (DO NOT REMOVE)\n**Delete any unused sections below**\n\n------------------------------------------------------------\nSlack Thread URL:\n\nParent/PRB Template: [Update/add to section below with all required data from Parents/PRB's]\n\n${meta}\n\nCategory: ${value("newCategory","Not provided")}\nSubcategory: ${value("newSubcategory","Not provided")}\nChannel: ${value("channel","Phone")}\nLocation: ${value("newLocation","Not provided")}\n\nIssue:\n${sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution / Next Step:\n${sentence(sections.resolution)}`;
+  const optionalMeta = [...meta, ...routing].join("\n");
+  return `Template Header (DO NOT REMOVE)\n**Delete any unused sections below**\n\n------------------------------------------------------------${optionalMeta ? `\n${optionalMeta}` : ""}\n\nIssue:\n${value("newSubcategory") || sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution / Next Step:\n${sentence(sections.resolution)}`;
 }
 
 function buildRecorderWorkNotes(sections=recorderSections()) {
   const steps = sections.steps.length ? sections.steps.map((line)=>`- ${sentence(line)}`).join("\n") : "- No troubleshooting steps captured yet.";
   const escalation = /escalat|t2|tier 2/i.test(sections.cleaned) ? "Escalated for additional investigation." : "[Only if escalated to T2]";
-  return `Issue:\n${sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution:\n${sentence(sections.resolution)}\n\nReason for Escalation: ${escalation}`;
+  return `Issue:\n${value("newSubcategory") || sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution:\n${sentence(sections.resolution)}\n\nReason for Escalation: ${escalation}`;
 }
 
 function buildRecorderShortDescription(sections=recorderSections()) {
-  const prefix=value("programName") || value("companyName") || "";
-  const issue=normalizeRecorderLine(sections.issue).replace(/^(caller|customer|user|rep)\s+/i, "");
-  const text=prefix ? `${prefix} - ${issue}` : issue;
-  return (text || "Incident support request").slice(0,180);
+  const subcategory=value("newSubcategory");
+  let issue=normalizeRecorderTerms(sections.issueSummary || "");
+  issue=issue.replace(/^(?:caller|customer|user|rep)\s+/i, "");
+  if (!issue && subcategory) issue=subcategory;
+  if (subcategory && issue && issue.toLowerCase() !== subcategory.toLowerCase()) return `${subcategory} - ${issue}`.slice(0,180);
+  return (issue || subcategory || "Incident support request").slice(0,180);
 }
 
 function refreshRecorderDescriptions({ cleanNotes=false }={}) {
@@ -484,7 +576,7 @@ function generateTicketFromForm() {
   $("generatedTicket").value=ticket;
   $("recorderTimeSaved").textContent=`Generated ${new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}`;
   setRecorderSaveStatus("Generated");
-  showToast("Clean ticket generated from the call notes.");
+  showToast("Concise ticket generated from the call notes.");
 }
 
 function updateRecorderCounter(id,counterId) {
@@ -573,26 +665,104 @@ function appendRecorderNote(text){ const current=value("newRawNotes"); $("newRaw
 function renderRecorderSnippets(){ const el=$("snippetRow"); if(el)el.innerHTML=RECORDER_SNIPPETS.map((s)=>`<button type="button" data-recorder-snippet="${escapeHtml(s)}">+ ${escapeHtml(s)}</button>`).join(""); }
 function isLocalFilePage(){ return window.location.protocol==="file:"; }
 
+function clearRecorderVoiceRestartTimer(){
+  if(recorderVoiceRestartTimer){clearTimeout(recorderVoiceRestartTimer);recorderVoiceRestartTimer=null;}
+}
+function updateRecorderVoiceControls(mode){
+  const start=$("startVoiceBtn"),pause=$("pauseVoiceBtn"),stop=$("stopVoiceBtn"),dot=$("voiceDot");
+  if(!start||!pause||!stop||!dot)return;
+  if(mode==="listening"||mode==="reconnecting"){
+    start.disabled=true;pause.disabled=false;stop.disabled=false;dot.classList.add("ready","listening");
+  }else if(mode==="paused"){
+    start.disabled=false;pause.disabled=true;stop.disabled=false;dot.classList.add("ready");dot.classList.remove("listening");
+  }else{
+    start.disabled=isLocalFilePage();pause.disabled=true;stop.disabled=true;dot.classList.remove("listening");
+  }
+}
+function scheduleRecorderVoiceRestart(reason="session ended"){
+  if(!recorderShouldRestartVoice||recorderVoicePaused||recorderVoiceFatalError||!recorderRecognition)return;
+  clearRecorderVoiceRestartTimer();
+  const delay=Math.min(250+(recorderVoiceRestartAttempts*250),1500);
+  updateRecorderVoiceControls("reconnecting");
+  if($("voiceStatus"))$("voiceStatus").textContent=`Still listening — reconnecting automatically (${reason}). Only Stop ends voice notes.`;
+  recorderVoiceRestartTimer=setTimeout(()=>{
+    recorderVoiceRestartTimer=null;
+    if(!recorderShouldRestartVoice||recorderVoicePaused||recorderVoiceFatalError||recorderVoiceListening||recorderVoiceStarting)return;
+    try{
+      recorderVoiceStarting=true;
+      recorderVoiceRestartAttempts+=1;
+      recorderRecognition.start();
+    }catch(error){
+      recorderVoiceStarting=false;
+      scheduleRecorderVoiceRestart("retrying microphone");
+    }
+  },delay);
+}
 function setupRecorderVoiceNotes(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; recorderRecognition=null; recorderShouldRestartVoice=false; recorderVoiceListening=false;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  clearRecorderVoiceRestartTimer();
+  recorderRecognition=null;recorderShouldRestartVoice=false;recorderVoiceListening=false;recorderVoiceStarting=false;recorderVoicePaused=false;recorderVoiceFatalError=false;recorderVoiceRestartAttempts=0;
   const dot=$("voiceDot"),start=$("startVoiceBtn"),pause=$("pauseVoiceBtn"),stop=$("stopVoiceBtn");
   dot.classList.remove("ready","listening"); pause.disabled=true; stop.disabled=true;
   if(!SR){$("voiceStatus").textContent="Voice notes are not supported in this browser. You can still type rough notes.";start.disabled=true;return;}
   if(isLocalFilePage()){$("voiceStatus").textContent="Voice notes need HTTPS or localhost. Upload to GitHub Pages to use microphone dictation.";start.disabled=true;return;}
-  dot.classList.add("ready");start.disabled=false;$("voiceStatus").textContent="Voice notes are off. Click Start voice notes when you are ready to allow microphone access.";
+  dot.classList.add("ready");start.disabled=false;$("voiceStatus").textContent="Voice notes are off. Click Start voice notes. Once started, they reconnect automatically until you click Stop.";
 }
 function initRecorderVoiceNotes(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR||isLocalFilePage()){setupRecorderVoiceNotes();return false;} if(recorderRecognition)return true;
-  recorderRecognition=new SR(); recorderRecognition.continuous=true; recorderRecognition.interimResults=true; recorderRecognition.lang="en-US";
-  recorderRecognition.onstart=()=>{recorderVoiceListening=true;$("startVoiceBtn").disabled=true;$("pauseVoiceBtn").disabled=false;$("stopVoiceBtn").disabled=false;$("voiceDot").classList.add("listening");$("voiceStatus").textContent="Listening. Speak short call notes.";};
-  recorderRecognition.onresult=(event)=>{let interim="",finalText="";for(let i=event.resultIndex;i<event.results.length;i++){const t=event.results[i][0].transcript.trim();if(event.results[i].isFinal)finalText+=`${t}\n`;else interim+=t;}if(finalText.trim())appendRecorderNote(finalText.trim());$("interimTranscript").textContent=interim||"Interim transcript will appear here while listening.";};
-  recorderRecognition.onerror=(event)=>{recorderShouldRestartVoice=false;$("voiceDot").classList.remove("listening");$("startVoiceBtn").disabled=false;$("pauseVoiceBtn").disabled=true;$("stopVoiceBtn").disabled=true;$("voiceStatus").textContent=["not-allowed","service-not-allowed","audio-capture"].includes(event.error)?"Microphone access was blocked or unavailable. You can keep typing rough notes.":`Voice note error: ${event.error}. You can keep typing notes.`;};
-  recorderRecognition.onend=()=>{recorderVoiceListening=false;$("voiceDot").classList.remove("listening");$("interimTranscript").textContent="Interim transcript will appear here while listening.";if(recorderShouldRestartVoice){try{recorderRecognition.start();}catch(e){recorderShouldRestartVoice=false;}}else{$("startVoiceBtn").disabled=false;$("pauseVoiceBtn").disabled=true;$("stopVoiceBtn").disabled=true;$("voiceStatus").textContent="Voice notes stopped.";}};
+  recorderRecognition=new SR(); recorderRecognition.continuous=true; recorderRecognition.interimResults=true; recorderRecognition.maxAlternatives=1; recorderRecognition.lang="en-US";
+  recorderRecognition.onstart=()=>{
+    recorderVoiceStarting=false;recorderVoiceListening=true;recorderVoiceRestartAttempts=0;
+    updateRecorderVoiceControls("listening");
+    $("voiceStatus").textContent="Listening continuously. If the browser pauses recognition, it will reconnect automatically until you click Stop.";
+  };
+  recorderRecognition.onresult=(event)=>{let interim="",finalText="";for(let i=event.resultIndex;i<event.results.length;i++){const t=event.results[i][0].transcript.trim();if(event.results[i].isFinal)finalText+=`${t}\n`;else interim+=t;}if(finalText.trim())appendRecorderNote(finalText.trim());$("interimTranscript").textContent=interim||"Listening for the next part of the call…";};
+  recorderRecognition.onerror=(event)=>{
+    recorderVoiceStarting=false;
+    const fatal=["not-allowed","service-not-allowed","audio-capture"].includes(event.error);
+    if(fatal){
+      recorderVoiceFatalError=true;recorderShouldRestartVoice=false;clearRecorderVoiceRestartTimer();updateRecorderVoiceControls("stopped");
+      $("voiceStatus").textContent="Microphone access was blocked or unavailable. Allow microphone access, then click Start voice notes again.";
+      return;
+    }
+    // Chrome/Edge can emit no-speech, network, or aborted errors during long calls.
+    // Keep the requested session alive; onend will automatically start a fresh recognition session.
+    if(recorderShouldRestartVoice&&!recorderVoicePaused){
+      updateRecorderVoiceControls("reconnecting");
+      $("voiceStatus").textContent=`Voice recognition paused briefly (${event.error}). Reconnecting automatically — do not click Start again.`;
+    }
+  };
+  recorderRecognition.onend=()=>{
+    recorderVoiceStarting=false;recorderVoiceListening=false;$("voiceDot").classList.remove("listening");$("interimTranscript").textContent="Interim transcript will appear here while listening.";
+    if(recorderShouldRestartVoice&&!recorderVoicePaused&&!recorderVoiceFatalError){
+      scheduleRecorderVoiceRestart("browser session ended");
+    }else if(recorderVoicePaused){
+      updateRecorderVoiceControls("paused");$("voiceStatus").textContent="Voice notes paused. Click Start voice notes to resume, or Stop to end the session.";
+    }else if(!recorderVoiceFatalError){
+      updateRecorderVoiceControls("stopped");$("voiceStatus").textContent="Voice notes stopped.";
+    }
+  };
   return true;
 }
-function startRecorderVoiceNotes(){ if(isLocalFilePage()){setupRecorderVoiceNotes();showToast("Voice notes need HTTPS or localhost. They will work on GitHub Pages.");return;} if(!initRecorderVoiceNotes())return;recorderShouldRestartVoice=true;if(recorderVoiceListening)return;try{recorderRecognition.start();}catch(e){$("voiceStatus").textContent="Voice notes are already starting.";} }
-function pauseRecorderVoiceNotes(){recorderShouldRestartVoice=false;if(recorderRecognition){try{recorderRecognition.stop();}catch(e){}}$("voiceStatus").textContent="Voice notes paused.";}
-function stopRecorderVoiceNotes(){recorderShouldRestartVoice=false;if(recorderRecognition){try{recorderRecognition.stop();}catch(e){}}recorderVoiceListening=false;if($("startVoiceBtn"))$("startVoiceBtn").disabled=isLocalFilePage();if($("pauseVoiceBtn"))$("pauseVoiceBtn").disabled=true;if($("stopVoiceBtn"))$("stopVoiceBtn").disabled=true;if($("voiceDot"))$("voiceDot").classList.remove("listening");if($("voiceStatus"))$("voiceStatus").textContent=isLocalFilePage()?"Voice notes need HTTPS or localhost.":"Voice notes stopped.";}
+function startRecorderVoiceNotes(){
+  if(isLocalFilePage()){setupRecorderVoiceNotes();showToast("Voice notes need HTTPS or localhost. They will work on GitHub Pages.");return;}
+  if(!initRecorderVoiceNotes())return;
+  recorderVoiceFatalError=false;recorderVoicePaused=false;recorderShouldRestartVoice=true;clearRecorderVoiceRestartTimer();
+  if(recorderVoiceListening||recorderVoiceStarting)return;
+  try{recorderVoiceStarting=true;updateRecorderVoiceControls("reconnecting");$("voiceStatus").textContent="Starting continuous voice notes…";recorderRecognition.start();}
+  catch(error){recorderVoiceStarting=false;scheduleRecorderVoiceRestart("starting microphone");}
+}
+function pauseRecorderVoiceNotes(){
+  recorderVoicePaused=true;recorderShouldRestartVoice=false;clearRecorderVoiceRestartTimer();
+  if(recorderRecognition&&(recorderVoiceListening||recorderVoiceStarting)){try{recorderRecognition.stop();}catch(error){}}
+  recorderVoiceListening=false;recorderVoiceStarting=false;updateRecorderVoiceControls("paused");$("voiceStatus").textContent="Voice notes paused. Click Start voice notes to resume, or Stop to end the session.";
+}
+function stopRecorderVoiceNotes(){
+  recorderShouldRestartVoice=false;recorderVoicePaused=false;recorderVoiceFatalError=false;clearRecorderVoiceRestartTimer();
+  if(recorderRecognition&&(recorderVoiceListening||recorderVoiceStarting)){try{recorderRecognition.stop();}catch(error){}}
+  recorderVoiceListening=false;recorderVoiceStarting=false;recorderVoiceRestartAttempts=0;
+  if($("startVoiceBtn"))$("startVoiceBtn").disabled=isLocalFilePage();if($("pauseVoiceBtn"))$("pauseVoiceBtn").disabled=true;if($("stopVoiceBtn"))$("stopVoiceBtn").disabled=true;if($("voiceDot"))$("voiceDot").classList.remove("listening");if($("voiceStatus"))$("voiceStatus").textContent=isLocalFilePage()?"Voice notes need HTTPS or localhost.":"Voice notes stopped.";
+}
 async function copyText(text, message = "Copied to clipboard.") {
   if (!text) { showToast("There is nothing to copy yet."); return; }
   try { await navigator.clipboard.writeText(text); showToast(message); }

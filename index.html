@@ -277,7 +277,7 @@
               </div>
 
               <div class="voice-card" aria-label="Voice note controls">
-                <div class="voice-status"><span class="voice-dot" id="voiceDot"></span><span id="voiceStatus">Voice notes are off. Click Start voice notes when you are ready.</span></div>
+                <div class="voice-status"><span class="voice-dot" id="voiceDot"></span><span id="voiceStatus">Voice notes are off. Click Start voice notes. Once started, they stay active and reconnect automatically until you click Stop.</span></div>
                 <div class="voice-tools">
                   <button class="button primary" id="startVoiceBtn" type="button"><i data-lucide="mic"></i> Start voice notes</button>
                   <button class="button" id="pauseVoiceBtn" type="button"><i data-lucide="pause"></i> Pause</button>
@@ -310,7 +310,7 @@
 
             <section class="recorder-section" id="verifyDetails">
               <div class="recorder-section-heading">
-                <div><h3>2. Verify details found in notes</h3><p>The app extracts these values into the Detailed Description template. Edit anything that looks wrong.</p></div>
+                <div><h3>2. Verify details found in notes</h3><p>The app extracts useful values from the transcript. The Issue field is taken directly from the selected Subcategory, while call chatter is removed from the generated ticket.</p></div>
                 <span class="subtle-pill">Review before generate</span>
               </div>
               <div class="detected-summary" id="detectedSummary" aria-live="polite">No details extracted yet.</div>
@@ -390,7 +390,7 @@
         </div>
 
         <aside class="recorder-output-column" aria-label="Generated ticket">
-          <div class="section-row"><div><h3>Generated ticket</h3><p>Only the copy-ready ticket sections are shown here.</p></div><span class="subtle-pill">Editable</span></div>
+          <div class="section-row"><div><h3>Generated ticket</h3><p>Copy-ready output with greetings and call-control chatter removed. Issue uses the selected Subcategory.</p></div><span class="subtle-pill">Editable</span></div>
           <div class="time-saved" id="recorderTimeSaved"></div>
           <textarea id="generatedTicket" class="generated-ticket" rows="25" placeholder="Your generated ticket will appear here. You can edit it before copying."></textarea>
           <div class="button-row output-actions">
