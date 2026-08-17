@@ -1,44 +1,51 @@
-# IncidentRecorder
+# IncidentRecorder - Local AI build
 
-IncidentRecorder is a local-first surveillance incident management dashboard. The interface is implemented from the SecureWatch Figma design while keeping the repository's lightweight static HTML/CSS/JavaScript architecture.
+This build keeps the existing static HTML/CSS/JavaScript IncidentRecorder and adds an optional **free local AI ticket generator** using WebLLM.
 
-## What is included
+## Files to upload to GitHub
 
-- Dark SecureWatch dashboard shell with collapsible navigation.
-- Dashboard metrics and responsive canvas charts.
-- Incident management table with severity/status/search filters.
-- Incident detail dialog with local status updates.
-- **Add New Incident** recorder that cleans rough notes, generates a structured ticket, copies/downloads the result, and saves the incident in `localStorage`.
-- Video evidence upload UI with local metadata simulation and playback detail dialog.
-- Analytics view with trend, category, resolution-time, and location charts.
-- Settings view with local profile preferences and JSON export.
-- Responsive mobile navigation and layouts.
-- Migration support for older IncidentRecorder browser drafts stored under the previous local-storage keys.
+Upload these files to the root of the repository:
 
-## Privacy
+- `index.html`
+- `styles.css`
+- `app.js`
+- `ai.js`
+- `README.md`
 
-This version remains a static browser application. Incident records, settings, and simulated upload metadata are stored in the current browser's `localStorage`. No incident text or uploaded video bytes are sent to a backend by this repository.
+## Local AI behavior
 
-The Lucide icon library is loaded from its pinned CDN build for the interface icons. If the icon CDN is unavailable, the application functionality still loads; only icons may be absent until the CDN becomes reachable.
+- Local AI is optional and is enabled from the New Incident screen.
+- The selected WebLLM model runs inside the browser with WebGPU.
+- No OpenAI/Deepgram/API key is required.
+- Rough call notes are processed locally by the model after it is downloaded.
+- The first AI use downloads the selected model and the browser caches the model files.
+- **Fast model:** Llama 3.2 1B.
+- **More accurate model:** Llama 3.2 3B.
+- If WebGPU/model loading/AI generation fails, the existing rule-based generator is used automatically.
 
-## Run locally
+The AI is instructed that the microphone contains **only Chloe's side of the support call**. It should document every meaningful check, finding, instruction, diagnosis, training step, and retest instruction in chronological order while removing greetings and filler.
 
-Open `index.html` in a modern browser. For the most browser-consistent behavior, you can also serve the folder locally:
+## Ticket rules retained
 
-```bash
-python3 -m http.server 8080
-```
-
-Then open `http://localhost:8080`.
-
-## Deploy to GitHub Pages
-
-This project is static, so the repository root can be deployed directly with GitHub Pages. If you already have a Pages workflow in your GitHub repository, keep using it with these updated root files.
-
-## Main files
+- Manual fields are never overwritten by AI suggestions.
+- Unknown fields remain blank.
+- Leading zeros in exact IDs/account numbers are preserved when possible.
+- The selected Subcategory remains the Issue value in Work Notes.
+- `Keepstock - Onsite` and `Keepstock Canada - Onsite` Detailed Description contains only:
 
 ```text
-index.html   Application shell and all five views
-styles.css   Figma-inspired responsive visual system
-app.js       Navigation, local data, ticket generation, uploads, dialogs, and charts
+Crib/Program id:
+Program name:
+Company name:
+Site ID (If Applicable):
+Acct #:
 ```
+
+- Rough Notes remain intact when generating a ticket.
+- Voice recognition continues/reconnects until Stop is clicked, except for fatal browser microphone permission/device errors.
+
+## Hosting
+
+Use GitHub Pages or another HTTPS host. Voice microphone access and WebGPU/browser model loading are not reliable from a `file://` URL.
+
+Recommended browser: current Chrome or Edge with WebGPU enabled.

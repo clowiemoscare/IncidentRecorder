@@ -376,3 +376,24 @@ tbody tr:hover { background: rgba(30,41,59,.45); }
   .recorder-section-heading { flex-direction: column; }
   .generated-ticket { min-height: 360px; }
 }
+
+
+/* Local in-browser AI */
+.local-ai-card { margin-top: 12px; border: 1px solid #2a4568; background: linear-gradient(135deg, rgba(30,64,175,.12), rgba(15,23,42,.9)); border-radius: 10px; padding: 12px; }
+.local-ai-heading { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+.local-ai-heading strong { display: inline-flex; align-items: center; gap: 7px; color: #dbeafe; font-size: 12px; }
+.local-ai-heading strong svg { width: 15px; height: 15px; color: #60a5fa; }
+.local-ai-heading p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; max-width: 620px; }
+.local-ai-toggle { display: inline-flex; align-items: center; gap: 7px; color: #dbeafe; font-size: 10px; white-space: nowrap; }
+.local-ai-toggle input { width: auto; height: auto; accent-color: #3b82f6; }
+.local-ai-controls { display: grid; grid-template-columns: minmax(190px, 260px) auto 1fr; gap: 8px; align-items: end; margin-top: 11px; }
+.local-ai-controls label { color: var(--muted); font-size: 10px; display: grid; gap: 4px; }
+.local-ai-controls select { height: 34px; font-size: 11px; }
+.local-ai-controls .button { min-height: 34px; font-size: 10px; white-space: nowrap; }
+.local-ai-status { align-self: center; color: #93c5fd; font-size: 10px; line-height: 1.35; }
+.local-ai-progress { height: 5px; margin-top: 9px; border-radius: 999px; background: #111827; overflow: hidden; }
+.local-ai-progress span { display: block; height: 100%; width: 0%; background: linear-gradient(90deg,#2563eb,#38bdf8); transition: width .2s ease; }
+.local-ai-card > small { display: block; margin-top: 8px; color: var(--muted-2); font-size: 9px; line-height: 1.45; }
+.local-ai-card.ai-ready { border-color: #1f6b4f; background: linear-gradient(135deg, rgba(5,150,105,.09), rgba(15,23,42,.9)); }
+.local-ai-card.ai-error { border-color: #7f1d1d; }
+@media (max-width:700px){ .local-ai-heading{flex-direction:column;} .local-ai-controls{grid-template-columns:1fr;} }

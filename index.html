@@ -298,6 +298,28 @@
                 <div class="snippet-row" id="snippetRow"></div>
               </div>
 
+              <div class="local-ai-card" id="localAiCard">
+                <div class="local-ai-heading">
+                  <div>
+                    <strong><i data-lucide="brain-circuit"></i> Free local AI</strong>
+                    <p>Runs in this browser with WebGPU. Your call notes are processed locally; only the AI model files are downloaded.</p>
+                  </div>
+                  <label class="local-ai-toggle"><input id="useLocalAi" type="checkbox" checked /> Use local AI</label>
+                </div>
+                <div class="local-ai-controls">
+                  <label>Model
+                    <select id="localAiModel">
+                      <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC" selected>Fast · Llama 3.2 1B</option>
+                      <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC">More accurate · Llama 3.2 3B</option>
+                    </select>
+                  </label>
+                  <button class="button" id="loadLocalAiBtn" type="button"><i data-lucide="download"></i> Load local AI</button>
+                  <span class="local-ai-status" id="localAiStatus" aria-live="polite">Not loaded yet</span>
+                </div>
+                <div class="local-ai-progress" id="localAiProgress" hidden><span id="localAiProgressBar"></span></div>
+                <small id="localAiHint">The first use downloads the selected model and caches it in the browser. If WebGPU is unavailable, Generate clean ticket automatically uses the existing rule-based generator.</small>
+              </div>
+
               <div class="button-row recorder-action-row">
                 <button class="button" id="extractDetailsBtn" type="button"><i data-lucide="scan-search"></i> Extract details</button>
                 <button class="button primary" id="generateTicketBtn" type="button"><i data-lucide="wand-sparkles"></i> Generate clean ticket</button>
@@ -425,5 +447,6 @@
 
   <script async src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" onload="window.lucide && window.lucide.createIcons({ attrs: { 'stroke-width': 1.8 } })"></script>
   <script src="app.js"></script>
+  <script type="module" src="ai.js"></script>
 </body>
 </html>
