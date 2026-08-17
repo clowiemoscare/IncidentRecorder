@@ -302,6 +302,7 @@ let recorderVoicePaused = false;
 let recorderVoiceFatalError = false;
 let recorderVoiceRestartTimer = null;
 let recorderVoiceRestartAttempts = 0;
+let recorderVoicePendingInterim = "";
 
 function openNewIncident() {
   stopRecorderVoiceNotes();
@@ -582,13 +583,13 @@ function recorderSections(raw = value("newRawNotes")) {
 
   const rawSteps = meaningful.filter((line) => {
     if (!actionRe.test(line) || line === explicitResolution) return false;
-    if (programUnassigned && /\bassign(?:ed|ment)?\b/i.test(line)) return false;
+    if (programUnassigned && /\b(?:not assigned|aren't assigned|not yet assigned)\b/i.test(line)) return false;
     if (programGuidance && /grainger\.com|account information|select all|assign all|\bsave\b/i.test(line)) return false;
     if (keepstockWeb && /keepstock web|\bapp\b|website/i.test(line)) return false;
     if (gen2Context && /transition|gen\s*2|workstation|\bosr\b|account manager/i.test(line)) return false;
     return true;
   });
-  const steps = unique([...contextualSteps, ...rawSteps.map(summarizeRecorderStep).filter(Boolean)]).slice(0, 6);
+  const steps = unique([...contextualSteps, ...rawSteps.map(summarizeRecorderStep).filter(Boolean)]);
 
   let resolution = "";
   if (explicitResolution) {
@@ -607,9 +608,30 @@ function recorderSections(raw = value("newRawNotes")) {
   const issue = value("newSubcategory") || issueSummary || "";
   return { cleaned, lines, issue, issueSummary, steps, resolution };
 }
+function isRecorderOnsiteCategory(category = value("newCategory")) {
+  return category === "Keepstock - Onsite" || category === "Keepstock Canada - Onsite";
+}
+
 function buildRecorderDetailedDescription(sections = recorderSections()) {
-  // Keep the ServiceNow template shape, but leave unknown fields blank instead
-  // of filling the ticket with "Not provided" placeholders.
+  // KeepStock Onsite tickets use the reduced parent/PRB template requested by the team.
+  // Values that were not captured remain blank; Company name is fixed to W.W. Grainger.
+  if (isRecorderOnsiteCategory()) {
+    const onsiteSeparator = "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";
+    return `Template Header (DO NOT REMOVE)
+**Delete any unused sections below**
+${onsiteSeparator}
+Slack Thread URL:
+ 
+Parent/PRB Template: [Update/add to section below with all required data from Parents/PRB's]
+ 
+Crib/Program id: ${value("cribProgramId")}
+Program name: ${value("programName")}
+Company name: W.W. Grainger
+Site ID (If Applicable): ${value("siteId")}
+Acct #: ${value("accountNumber")}`;
+  }
+
+  // Other categories keep the full ServiceNow template, with unknown fields blank.
   const meta = RECORDER_DETAIL_FIELDS
     .map(([id, label]) => `${label}: ${value(id)}`)
     .join("\n");
@@ -625,7 +647,26 @@ function buildRecorderDetailedDescription(sections = recorderSections()) {
   const issue = value("newSubcategory") || sentence(sections.issue);
   const resolution = sentence(sections.resolution);
 
-  return `Template Header (DO NOT REMOVE)\n**Delete any unused sections below**\n\n------------------------------------------------------------\nSlack Thread URL:\n\nParent/PRB Template:\n\n${meta}\n\n${routing}\n\nIssue:\n${issue}\n\nTroubleshooting Steps:\n${steps}\n\nResolution / Next Step:\n${resolution}`;
+  return `Template Header (DO NOT REMOVE)
+**Delete any unused sections below**
+
+------------------------------------------------------------
+Slack Thread URL:
+
+Parent/PRB Template:
+
+${meta}
+
+${routing}
+
+Issue:
+${issue}
+
+Troubleshooting Steps:
+${steps}
+
+Resolution / Next Step:
+${resolution}`;
 }
 function buildRecorderWorkNotes(sections = recorderSections()) {
   const steps = sections.steps.map((line) => `- ${sentence(line)}`).join("\n");
@@ -658,7 +699,7 @@ function refreshRecorderDescriptions({ cleanNotes=false }={}) {
 }
 
 function generateTicketFromForm() {
-  const sections=refreshRecorderDescriptions({cleanNotes:true});
+  const sections=refreshRecorderDescriptions({cleanNotes:false});
   const ticket=`Short Description:\n${value("newTitle",buildRecorderShortDescription(sections))}\n\nDetailed Description:\n${value("detailedDescription")}\n\nWork Notes:\n${value("workNotes")}`;
   $("generatedTicket").value=ticket;
   $("recorderTimeSaved").textContent=`Generated ${new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}`;
@@ -788,7 +829,7 @@ function scheduleRecorderVoiceRestart(reason="session ended"){
 function setupRecorderVoiceNotes(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   clearRecorderVoiceRestartTimer();
-  recorderRecognition=null;recorderShouldRestartVoice=false;recorderVoiceListening=false;recorderVoiceStarting=false;recorderVoicePaused=false;recorderVoiceFatalError=false;recorderVoiceRestartAttempts=0;
+  recorderRecognition=null;recorderShouldRestartVoice=false;recorderVoiceListening=false;recorderVoiceStarting=false;recorderVoicePaused=false;recorderVoiceFatalError=false;recorderVoiceRestartAttempts=0;recorderVoicePendingInterim="";
   const dot=$("voiceDot"),start=$("startVoiceBtn"),pause=$("pauseVoiceBtn"),stop=$("stopVoiceBtn");
   dot.classList.remove("ready","listening"); pause.disabled=true; stop.disabled=true;
   if(!SR){$("voiceStatus").textContent="Voice notes are not supported in this browser. You can still type rough notes.";start.disabled=true;return;}
@@ -803,7 +844,19 @@ function initRecorderVoiceNotes(){
     updateRecorderVoiceControls("listening");
     $("voiceStatus").textContent="Listening continuously. If the browser pauses recognition, it will reconnect automatically until you click Stop.";
   };
-  recorderRecognition.onresult=(event)=>{let interim="",finalText="";for(let i=event.resultIndex;i<event.results.length;i++){const t=event.results[i][0].transcript.trim();if(event.results[i].isFinal)finalText+=`${t}\n`;else interim+=t;}if(finalText.trim())appendRecorderNote(finalText.trim());$("interimTranscript").textContent=interim||"Listening for the next part of the call…";};
+  recorderRecognition.onresult=(event)=>{
+    let interim="",finalText="";
+    for(let i=event.resultIndex;i<event.results.length;i++){
+      const t=event.results[i][0].transcript.trim();
+      if(event.results[i].isFinal)finalText+=`${t}\n`;else interim+=`${t} `;
+    }
+    if(finalText.trim()){
+      appendRecorderNote(finalText.trim());
+      recorderVoicePendingInterim="";
+    }
+    recorderVoicePendingInterim=interim.trim();
+    $("interimTranscript").textContent=recorderVoicePendingInterim||"Listening for the next part of the call…";
+  };
   recorderRecognition.onerror=(event)=>{
     recorderVoiceStarting=false;
     const fatal=["not-allowed","service-not-allowed","audio-capture"].includes(event.error);
@@ -820,7 +873,14 @@ function initRecorderVoiceNotes(){
     }
   };
   recorderRecognition.onend=()=>{
-    recorderVoiceStarting=false;recorderVoiceListening=false;$("voiceDot").classList.remove("listening");$("interimTranscript").textContent="Interim transcript will appear here while listening.";
+    recorderVoiceStarting=false;recorderVoiceListening=false;$("voiceDot").classList.remove("listening");
+    // Some browsers end a recognition session while the last phrase is still interim.
+    // Preserve it in Rough Notes before reconnecting so troubleshooting details are not lost.
+    if(recorderVoicePendingInterim){
+      appendRecorderNote(recorderVoicePendingInterim);
+      recorderVoicePendingInterim="";
+    }
+    $("interimTranscript").textContent="Interim transcript will appear here while listening.";
     if(recorderShouldRestartVoice&&!recorderVoicePaused&&!recorderVoiceFatalError){
       scheduleRecorderVoiceRestart("browser session ended");
     }else if(recorderVoicePaused){
@@ -841,13 +901,15 @@ function startRecorderVoiceNotes(){
 }
 function pauseRecorderVoiceNotes(){
   recorderVoicePaused=true;recorderShouldRestartVoice=false;clearRecorderVoiceRestartTimer();
+  if(recorderVoicePendingInterim){appendRecorderNote(recorderVoicePendingInterim);recorderVoicePendingInterim="";}
   if(recorderRecognition&&(recorderVoiceListening||recorderVoiceStarting)){try{recorderRecognition.stop();}catch(error){}}
   recorderVoiceListening=false;recorderVoiceStarting=false;updateRecorderVoiceControls("paused");$("voiceStatus").textContent="Voice notes paused. Click Start voice notes to resume, or Stop to end the session.";
 }
 function stopRecorderVoiceNotes(){
   recorderShouldRestartVoice=false;recorderVoicePaused=false;recorderVoiceFatalError=false;clearRecorderVoiceRestartTimer();
+  if(recorderVoicePendingInterim){appendRecorderNote(recorderVoicePendingInterim);recorderVoicePendingInterim="";}
   if(recorderRecognition&&(recorderVoiceListening||recorderVoiceStarting)){try{recorderRecognition.stop();}catch(error){}}
-  recorderVoiceListening=false;recorderVoiceStarting=false;recorderVoiceRestartAttempts=0;
+  recorderVoiceListening=false;recorderVoiceStarting=false;recorderVoiceRestartAttempts=0;recorderVoicePendingInterim="";
   if($("startVoiceBtn"))$("startVoiceBtn").disabled=isLocalFilePage();if($("pauseVoiceBtn"))$("pauseVoiceBtn").disabled=true;if($("stopVoiceBtn"))$("stopVoiceBtn").disabled=true;if($("voiceDot"))$("voiceDot").classList.remove("listening");if($("voiceStatus"))$("voiceStatus").textContent=isLocalFilePage()?"Voice notes need HTTPS or localhost.":"Voice notes stopped.";
 }
 async function copyText(text, message = "Copied to clipboard.") {
