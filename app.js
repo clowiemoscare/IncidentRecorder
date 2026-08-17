@@ -288,10 +288,11 @@ const RECORDER_DETAIL_FIELDS = [
   ["accountNumber", "Acct #"], ["softwareVersion", "Software Version"], ["deviceId", "Device ID (Affected)"], ["machineSerial", "Machine Serial Number(s)"],
   ["cradlepointSerial", "Cradlepoint Serial Number"], ["imei", "IMEI"], ["carrier", "Carrier"], ["badgeReader", "Badge Reader"],
   ["model", "Model"], ["phoneModel", "Phone Model"], ["phoneSoftwareVersion", "Phone Software Version"], ["application", "Application"],
-  ["applicationVersion", "Application Version"], ["timeIssueOccurred", "Time issue occurred"]
+  ["applicationVersion", "Application Version"], ["timeIssueOccurred", "Time issue occurred"], ["orderNumber", "Order #"],
+  ["econnectionsStatus", "eConnections Status"], ["sapStatusEbu", "SAP Status/EBU Number"], ["orderReposted", "Does user want order reposted"]
 ];
 const RECORDER_FORM_IDS = [
-  "newRawNotes", "cribProgramId", "programName", "companyName", "siteId", "accountNumber", "softwareVersion", "deviceId", "machineSerial", "cradlepointSerial", "imei", "carrier", "badgeReader", "model", "phoneModel", "phoneSoftwareVersion", "application", "applicationVersion", "timeIssueOccurred", "newCategory", "newSubcategory", "recorderState", "businessImpact", "userImpact", "urgency", "priority", "assignmentGroup", "newAssignedTo", "service", "serviceOffering", "configurationItem", "channel", "newLocation", "partsRequest", "deviceAsset", "applicationService", "relatedSearch", "knowledgeScope", "watchList", "resolutionCode", "closeNotes", "newTitle", "detailedDescription", "workNotes", "generatedTicket"
+  "newRawNotes", "cribProgramId", "programName", "companyName", "siteId", "accountNumber", "softwareVersion", "deviceId", "machineSerial", "cradlepointSerial", "imei", "carrier", "badgeReader", "model", "phoneModel", "phoneSoftwareVersion", "application", "applicationVersion", "timeIssueOccurred", "orderNumber", "econnectionsStatus", "sapStatusEbu", "orderReposted", "newCategory", "newSubcategory", "recorderState", "businessImpact", "userImpact", "urgency", "priority", "assignmentGroup", "newAssignedTo", "service", "serviceOffering", "configurationItem", "channel", "newLocation", "partsRequest", "deviceAsset", "applicationService", "relatedSearch", "knowledgeScope", "watchList", "resolutionCode", "closeNotes", "newTitle", "detailedDescription", "workNotes", "generatedTicket"
 ];
 
 let recorderRecognition = null;
@@ -326,7 +327,7 @@ function normalizeRecorderTerms(text) {
     .replace(/\b(?:keep\s*stock|keeps\s*stock|keepsake|keep\s*stake|keeps\s*up|keep\s*up)\b/gi, "KeepStock")
     .replace(/\baccess\s+skip\b/gi, "access KeepStock")
     .replace(/\bclear\s*spider\b/gi, "ClearSpider")
-    .replace(/\bgrainger\s*\.\s*com\b/gi, "Grainger.com");
+    .replace(/\b(?:grainger|granger)\s*\.\s*com\b/gi, "Grainger.com");
 }
 
 function isRecorderChatter(line) {
@@ -462,6 +463,10 @@ function extractRecorderDetails(overwrite = false) {
     ["model", [/\bmodel\s*[:=-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i]],
     ["application", [/\b(?:application|app)\s*[:=-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i]],
     ["timeIssueOccurred", [/\b(?:time issue occurred|issue time)\s*[:=-]?\s*([^.;]+)/i]],
+    ["orderNumber", [/\border\s*(?:#|number|num)\s*(?:is\s+)?[:=#-]?\s*([A-Z0-9-]{3,})\b/i, /\border\s+(\d{5,})\b/i]],
+    ["econnectionsStatus", [/\beconnections?\s*status\s*[:=-]\s*([^.;]+)/i]],
+    ["sapStatusEbu", [/\b(?:sap\s*status(?:\s*\/\s*ebu\s*(?:number|#)?)?|ebu\s*(?:number|#))\s*[:=-]\s*([^.;]+)/i]],
+    ["orderReposted", [/\b(?:does\s+user\s+want\s+order\s+reposted|order\s+reposted)\s*[:=-]\s*(yes|no)\b/i]],
     ["programName", [/\bprogram\s*name\s*[:=-]\s*([^.;]+)/i]],
     ["companyName", [/\b(?:company|customer)\s*name\s*[:=-]\s*([^.;]+)/i]]
   ];
@@ -475,7 +480,9 @@ function extractRecorderDetails(overwrite = false) {
         if (match) { found = match[1]; break; }
       }
       if (found) {
-        $(id).value = normalizeRecorderTerms(found).replace(/\s+(?:and|then)$/i, "");
+        let normalized = normalizeRecorderTerms(found).replace(/\s+(?:and|then)$/i, "");
+        if (id === "orderReposted") normalized = /^yes$/i.test(normalized) ? "Yes" : /^no$/i.test(normalized) ? "No" : normalized;
+        $(id).value = normalized;
         break;
       }
     }
@@ -504,10 +511,16 @@ function recorderIssueSummary(lines) {
   );
   if (gen2) return "Caller wanted to verify whether the account has transitioned to Gen 2";
 
+  const createUser = candidates.find((line) =>
+    /(?:need|needs|assistance|help|how to|how do i|want to).*(?:create|add).*(?:new\s+)?user.*KeepStock(?:\s+web)?/i.test(line) ||
+    /(?:create|add).*(?:new\s+)?user.*KeepStock(?:\s+web)?/i.test(line)
+  );
+  if (createUser) return "Create a new user in KeepStock Web";
+
   const assignment = candidates.find((line) => /not assigned.*(?:program|vending)|(?:program|vending).*not assigned/i.test(line));
   if (assignment) return "Rep was not assigned to the customer's KeepStock programs";
 
-  const strong = /\b(?:unable to|not able to|can(?:not|'t)|could(?: not|n't)|fails? to|failed to|cannot|locked out|not working|issue with|problem with|error|access|log ?in|login|verify|transition)\b/i;
+  const strong = /\b(?:unable to|not able to|can(?:not|'t)|could(?: not|n't)|fails? to|failed to|cannot|locked out|not working|issue with|problem with|error|access|log ?in|login|verify|transition|create|add user|new user)\b/i;
   const action = /\b(?:sent|clicked|click|submit|requested|reset|advised|explained|asked|reviewed|go to|page number|follow step|receive an email|select all|save|assign)\b/i;
   let best = "";
   let bestScore = -999;
@@ -546,6 +559,15 @@ function summarizeRecorderStep(line) {
   if (/keepstock web/.test(lower) && /(?:not the app|the app no|website)/.test(lower)) return "Clarified that program assignment must be completed in KeepStock Web, not the app.";
   if (/(?:osr|account manager)/.test(lower) && /customer/.test(lower) && /transition/.test(lower)) return "Explained that the OSR/account manager and customer would be notified before a Gen 2 transition.";
 
+  // KeepStock Web user-management training calls often arrive as several short
+  // transcript fragments. Normalize each meaningful instruction into a clear
+  // ticket step without losing the sequence of what was done on the call.
+  if (/grainger\.com/.test(lower) && /keepstock/.test(lower) && /(?:log\s*in|login|go to|open)/.test(lower)) return "Guided the rep to log in to Grainger.com and open KeepStock.";
+  if (/(?:user\s*(?:and|&)\s*group\s*management|user\s*group\s*management)/.test(lower) && /create\s+user/.test(lower)) return "Directed the rep to User & Group Management > Users > Create User.";
+  if (/under\s+users/.test(lower) && /create\s+user/.test(lower)) return "Directed the rep to User & Group Management > Users > Create User.";
+  if (/follow\s+(?:the\s+)?(?:prompts?|prom\b|instructions?)/.test(lower)) return "Advised the rep to follow the prompts to complete the new-user setup.";
+  if (/assign(?:ed|ing)?\s+(?:some|the|appropriate|all)?\s*programs?.*(?:new\s+)?user|programs?.*assign(?:ed|ing)?.*(?:new\s+)?user/.test(lower)) return "Instructed the rep to assign the appropriate programs to the new user.";
+
   let concise = text
     .replace(/^(?:all right|alright|okay|ok|gotcha|awesome|just a moment|just a second|yeah)[, ]*/i, "")
     .replace(/\b(?:let me know when[^.?!]*|bear with me[^.?!]*)\b/gi, "")
@@ -557,9 +579,9 @@ function summarizeRecorderStep(line) {
 function recorderSections(raw = value("newRawNotes")) {
   const cleaned = cleanNotesText(raw);
   const lines = cleaned.split(/\n+/).map(normalizeRecorderTerms).filter(Boolean);
-  const metadata = /^(?:acct|account\s*(?:#|number)\s*[:=#-]|device\s*id|machine\s*serial|serial|crib|program\s*(?:id|name)\s*[:=-]|company\s*name\s*[:=-]|customer\s*name\s*[:=-]|site\s*id|software\s*version|sw\s*version|application\s*version|app\s*version|imei|carrier\s*[:=-]|badge\s*reader|model\s*[:=-]|phone\s*model|time\s*issue)/i;
+  const metadata = /^(?:acct|account\s*(?:#|number)\s*[:=#-]|device\s*id|machine\s*serial|serial|crib|program\s*(?:id|name)\s*[:=-]|company\s*name\s*[:=-]|customer\s*name\s*[:=-]|site\s*id|software\s*version|sw\s*version|application\s*version|app\s*version|imei|carrier\s*[:=-]|badge\s*reader|model\s*[:=-]|phone\s*model|time\s*issue|order\s*(?:#|number)|econnections?\s*status|sap\s*status|ebu\s*(?:number|#)|does\s+user\s+want\s+order\s+reposted)/i;
   const resolutionRe = /(resolved|fixed|restored|working now|sync successful|synced successfully|successful|completed|issue cleared|no longer|customer confirmed|user confirmed)/i;
-  const actionRe = /\b(confirmed|verified|checked|located|looked|unplugged|plugged|pressed|restarted|rebooted|reset|synced|cleared|tested|opened|closed|sent|forwarded|advised|explained|asked|reviewed|contacted|power cycled|had user|investigated|escalated|click|clicked|submit|requested|receive an email|follow step|right account|assigned|assign|select all|save|log into|log in|account information)\b/i;
+  const actionRe = /\b(confirmed|verified|checked|located|looked|unplugged|plugged|pressed|restarted|rebooted|reset|synced|cleared|tested|opened|closed|sent|forwarded|advised|explained|asked|reviewed|contacted|power cycled|had user|investigated|escalated|click|clicked|submit|requested|receive an email|follow step|follow|right account|assigned|assign|select all|save|log into|log in|login|go to|open|create user|user and group management|account information)\b/i;
 
   const narrative = lines.filter((line) => !metadata.test(line));
   const meaningful = narrative.filter((line) => !isRecorderChatter(line));
@@ -571,6 +593,14 @@ function recorderSections(raw = value("newRawNotes")) {
   const programGuidance = meaningful.some((line) => /grainger\.com.*keepstock.*account information|account information.*select all.*save/i.test(line));
   const keepstockWeb = meaningful.some((line) => /keepstock web/i.test(line));
   const passwordResetContext = meaningful.some((line) => /password reset|reset email|ClearSpider/i.test(line));
+  const createUserContext = meaningful.some((line) =>
+    /(?:need|needs|assistance|help|how to|want to).*(?:create|add).*(?:new\s+)?user.*keepstock/i.test(line) ||
+    /(?:create|add).*(?:new\s+)?user.*keepstock/i.test(line)
+  );
+  const createUserLoginStep = meaningful.some((line) => /grainger\.com/i.test(line) && /keepstock/i.test(line) && /(?:log\s*in|login|go to|open)/i.test(line));
+  const createUserMenuStep = meaningful.some((line) => /(?:user\s*(?:and|&)\s*group\s*management|user\s*group\s*management)/i.test(line) && /create\s+user/i.test(line));
+  const createUserPromptStep = meaningful.some((line) => /follow\s+(?:the\s+)?(?:prompts?|prom\b|instructions?)/i.test(line));
+  const createUserAssignStep = meaningful.some((line) => /assign(?:ed|ing)?\s+(?:some|the|appropriate|all)?\s*programs?.*(?:new\s+)?user|programs?.*assign(?:ed|ing)?.*(?:new\s+)?user/i.test(line));
 
   const contextualSteps = [];
   if (gen2Context && workstationCheck) contextualSteps.push("Checked Workstation and found no indication the account had transitioned to Gen 2.");
@@ -580,6 +610,10 @@ function recorderSections(raw = value("newRawNotes")) {
   if (programUnassigned) contextualSteps.push("Verified the rep was not assigned to the customer's KeepStock programs.");
   if (programGuidance) contextualSteps.push("Guided the rep to Grainger.com > KeepStock > Account Information, enter the account number, select all programs, and save to assign them to their profile.");
   if (keepstockWeb && meaningful.some((line) => /app|website/i.test(line))) contextualSteps.push("Clarified that program assignment must be completed in KeepStock Web, not the app.");
+  if (createUserContext && createUserLoginStep) contextualSteps.push("Guided the rep to log in to Grainger.com and open KeepStock.");
+  if (createUserContext && createUserMenuStep) contextualSteps.push("Directed the rep to User & Group Management > Users > Create User.");
+  if (createUserContext && createUserPromptStep) contextualSteps.push("Advised the rep to follow the prompts to complete the new-user setup.");
+  if (createUserContext && createUserAssignStep) contextualSteps.push("Instructed the rep to assign the appropriate programs to the new user.");
 
   const rawSteps = meaningful.filter((line) => {
     if (!actionRe.test(line) || line === explicitResolution) return false;
@@ -587,6 +621,7 @@ function recorderSections(raw = value("newRawNotes")) {
     if (programGuidance && /grainger\.com|account information|select all|assign all|\bsave\b/i.test(line)) return false;
     if (keepstockWeb && /keepstock web|\bapp\b|website/i.test(line)) return false;
     if (gen2Context && /transition|gen\s*2|workstation|\bosr\b|account manager/i.test(line)) return false;
+    if (createUserContext && /grainger\.com.*keepstock|user\s*(?:and|&)\s*group\s*management|under\s+users.*create\s+user|follow\s+(?:the\s+)?(?:prompts?|prom\b|instructions?)|assign(?:ed|ing)?\s+(?:some|the|appropriate|all)?\s*programs?.*(?:new\s+)?user/i.test(line)) return false;
     return true;
   });
   const steps = unique([...contextualSteps, ...rawSteps.map(summarizeRecorderStep).filter(Boolean)]);
@@ -594,6 +629,10 @@ function recorderSections(raw = value("newRawNotes")) {
   let resolution = "";
   if (explicitResolution) {
     resolution = summarizeRecorderStep(explicitResolution) || sentence(explicitResolution);
+  } else if (createUserContext && createUserAssignStep) {
+    resolution = "Rep was trained on creating a new user in KeepStock Web and assigning programs to the user's profile.";
+  } else if (createUserContext) {
+    resolution = "Rep was trained on creating a new user in KeepStock Web.";
   } else if (passwordResetContext) {
     resolution = "Customer to complete the KeepStock password reset using the emailed reset link.";
   } else if (gen2Context && (programUnassigned || programGuidance || keepstockWeb)) {
@@ -613,22 +652,47 @@ function isRecorderOnsiteCategory(category = value("newCategory")) {
 }
 
 function buildRecorderDetailedDescription(sections = recorderSections()) {
-  // KeepStock Onsite tickets use the reduced parent/PRB template requested by the team.
-  // Values that were not captured remain blank; Company name is fixed to W.W. Grainger.
+  // KeepStock Onsite tickets use the exact incident template supplied by the
+  // support team. Preserve blank lines because the ticketing system relies on
+  // the visual grouping when agents paste the generated text. Unknown values
+  // remain blank, and manually entered values always win.
   if (isRecorderOnsiteCategory()) {
     const onsiteSeparator = "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";
     return `Template Header (DO NOT REMOVE)
 **Delete any unused sections below**
 ${onsiteSeparator}
 Slack Thread URL:
- 
+
 Parent/PRB Template: [Update/add to section below with all required data from Parents/PRB's]
- 
+
 Crib/Program id: ${value("cribProgramId")}
 Program name: ${value("programName")}
-Company name: W.W. Grainger
+Company name: ${value("companyName")}
 Site ID (If Applicable): ${value("siteId")}
-Acct #: ${value("accountNumber")}`;
+Acct #: ${value("accountNumber")}
+
+
+Software Version: ${value("softwareVersion")}
+Device ID (Affected): ${value("deviceId")}
+Machine Serial Number(s): ${value("machineSerial")}
+
+Cradlepoint Serial Number: ${value("cradlepointSerial")}
+IMEI: ${value("imei")}
+Carrier: ${value("carrier")}
+
+Badge Reader: ${value("badgeReader")}
+Model: ${value("model")}
+
+Phone Model: ${value("phoneModel")}
+Phone Software Version: ${value("phoneSoftwareVersion")}
+Application: ${value("application")}
+Application Version: ${value("applicationVersion")}
+Time issue occurred: ${value("timeIssueOccurred")}
+
+Order #: ${value("orderNumber")}
+eConnections Status: ${value("econnectionsStatus")}
+SAP Status/EBU Number: ${value("sapStatusEbu")}
+Does user want order reposted: ${value("orderReposted")}`;
   }
 
   // Other categories keep the full ServiceNow template, with unknown fields blank.
@@ -668,6 +732,7 @@ ${steps}
 Resolution / Next Step:
 ${resolution}`;
 }
+
 function buildRecorderWorkNotes(sections = recorderSections()) {
   const steps = sections.steps.map((line) => `- ${sentence(line)}`).join("\n");
   const escalation = /escalat|t2|tier 2/i.test(sections.cleaned) ? "Escalated for additional investigation." : "";
