@@ -331,11 +331,18 @@ function normalizeRecorderTerms(text) {
 function isRecorderChatter(line) {
   const text = normalizeRecorderTerms(line).toLowerCase();
   if (!text) return true;
-  if (/password reset|clearspider|reset email|sent.*teams|right account/.test(text)) return false;
+
+  // Keep lines that contain real diagnostic findings or actionable guidance.
+  if (/password reset|clearspider|reset email|sent.*teams|right account|gen\s*2|transition(?:ed|ing)?|workstation|not assigned.*program|assigned to.*program|grainger\.com|account information|select all|keepstock web|program management/.test(text)) return false;
+
   const chatter = [
-    /^(?:hi|hello|hey|thanks|thank you|awesome|okay|ok|sure|gotcha|all right|alright)\b[.!]?$/,
-    /\b(?:first and last name|confirm your .*id|how can i help you today|what(?:'s| is) the account number|who was the contact|what email address|what user id do you use)\b/,
-    /\b(?:bear with me|just a second|just a moment|let me look you up|you hear me|can you hear me)\b/,
+    /\bhow can i help you\b/,
+    /\b(?:first and last name|confirm your .*id|what(?:'s| is) the account number|who was the contact|what email address|what user id do you use)\b/,
+    /\b(?:bear with me|just a second|just a moment|let me look (?:you|this) up|let me look this up real quick|you hear me|can you hear me)\b/,
+    /\bdo you have any other questions\b/,
+    /\bis that what you(?:'re| are) asking\b/,
+    /^(?:hi|hello|hey|thanks|thank you|awesome|great|perfect|okay|ok|sure|gotcha|all right|alright|yeah|yep|me|bye|bye-bye)\b[.!]?$/,
+    /^(?:thank you|thanks).*(?:day|bye)/,
     /^(?:do you|can you|could you|would you)\b.*\?*$/,
     /\blet me know when (?:you(?:'re| are)|you got|you have)\b/,
     /^(?:and )?whenever you click\b|\bdoes it ask you for\b/,
@@ -345,7 +352,6 @@ function isRecorderChatter(line) {
   ];
   return chatter.some((re) => re.test(text));
 }
-
 function cleanNotesText(raw) {
   const filler = /^(hi|hello|hey|thanks|thank you|okay|ok|um|uh|hmm|so|basically|you know|good morning|good afternoon|good evening)\b/i;
   const lines = String(raw || "")
@@ -369,7 +375,7 @@ function unique(items) {
 
 function sentence(text) {
   const clean = normalizeRecorderTerms(text);
-  if (!clean) return "Not provided.";
+  if (!clean) return "";
   const capped = clean[0].toUpperCase() + clean.slice(1);
   return /[.!?]$/.test(capped) ? capped : `${capped}.`;
 }
@@ -428,37 +434,56 @@ function updateRecorderPriority() {
 }
 
 function extractRecorderDetails(overwrite = false) {
-  const text = normalizeRecorderTerms(value("newRawNotes"));
+  // Parse one transcript line at a time so a question such as "what's the
+  // account number" can never consume the next unrelated utterance as a value.
+  const lines = cleanNotesText(value("newRawNotes"))
+    .split(/\n+/)
+    .map(normalizeRecorderTerms)
+    .filter(Boolean);
+
   const defs = [
-    ["cribProgramId", /\b(?:crib\s*\/\s*program\s*(?:id|#)|crib\s*(?:id|#)|program\s*(?:id|#))\s*[:=#-]?\s*([A-Z0-9-]+)/i],
-    ["accountNumber", /\b(?:acct|account)\s*(?:#|number|num)?\s*[:=#-]?\s*((?=[A-Z0-9-]*\d)[A-Z0-9-]{4,})/i],
-    ["accountNumber", /\b([0-9]{4,})\s+account\b/i],
-    ["deviceId", /\bdevice\s*id(?:\s*\(affected\))?\s*[:=#-]?\s*([A-Z0-9-]{4,})/i],
-    ["machineSerial", /\b(?:machine\s*)?serial(?:\s*number)?(?:\(s\))?\s*[:=#-]?\s*([A-Z0-9-]{5,})/i],
-    ["cradlepointSerial", /\b(?:cradlepoint|cp)\s*serial(?:\s*number)?\s*[:=#-]?\s*([A-Z0-9-]{5,})/i],
-    ["siteId", /\bsite\s*id\s*[:=#-]?\s*([A-Z0-9-]{3,})/i],
-    ["softwareVersion", /\b(?:software|sw)\s*version\s*[:=#-]?\s*([A-Z0-9._-]+)/i],
-    ["applicationVersion", /\b(?:application|app)\s*version\s*[:=#-]?\s*([A-Z0-9._-]+)/i],
-    ["phoneSoftwareVersion", /\bphone\s*(?:software|sw)\s*version\s*[:=#-]?\s*([A-Z0-9._-]+)/i],
-    ["imei", /\bimei\s*[:=#-]?\s*([0-9]{8,20})/i],
-    ["carrier", /\bcarrier\s*[:=-]?\s*([A-Za-z][A-Za-z0-9 &.-]{1,30})/i],
-    ["badgeReader", /\bbadge\s*reader\s*[:=-]?\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,30})/i],
-    ["phoneModel", /\bphone\s*model\s*[:=-]?\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i],
-    ["model", /\bmodel\s*[:=-]?\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i],
-    ["application", /\b(?:application|app)\s*[:=-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i],
-    ["timeIssueOccurred", /\b(?:time issue occurred|issue time)\s*[:=-]?\s*([^\n.;]+)/i],
-    ["programName", /\bprogram\s*name\s*[:=-]?\s*([^\n.;]+)/i],
-    ["companyName", /\b(?:company|customer)\s*name\s*[:=-]?\s*([^\n.;]+)/i]
+    ["cribProgramId", [/\b(?:crib\s*\/\s*program\s*(?:id|#)|crib\s*(?:id|#)|program\s*(?:id|#))\s*[:=#-]?\s*([A-Z0-9-]{3,})\b/i]],
+    ["accountNumber", [
+      /\b(?:acct|account)\s*(?:#|number|num)?\s*(?:is\s+)?[:=#-]?\s*(\d{4,})\b/i,
+      /\b(\d{4,})\s+(?:acct|account)\b/i
+    ]],
+    ["deviceId", [/\bdevice\s*id(?:\s*\(affected\))?\s*[:=#-]?\s*([A-Z0-9-]{4,})\b/i]],
+    ["machineSerial", [/\b(?:machine\s*)?serial(?:\s*number)?(?:\(s\))?\s*[:=#-]?\s*([A-Z0-9-]{5,})\b/i]],
+    ["cradlepointSerial", [/\b(?:cradlepoint|cp)\s*serial(?:\s*number)?\s*[:=#-]?\s*([A-Z0-9-]{5,})\b/i]],
+    ["siteId", [/\bsite\s*id\s*[:=#-]?\s*([A-Z0-9-]{3,})\b/i]],
+    ["softwareVersion", [/\b(?:software|sw)\s*version\s*[:=#-]?\s*([A-Z0-9._-]+)\b/i]],
+    ["applicationVersion", [/\b(?:application|app)\s*version\s*[:=#-]?\s*([A-Z0-9._-]+)\b/i]],
+    ["phoneSoftwareVersion", [/\bphone\s*(?:software|sw)\s*version\s*[:=#-]?\s*([A-Z0-9._-]+)\b/i]],
+    ["imei", [/\bimei\s*[:=#-]?\s*([0-9]{8,20})\b/i]],
+    ["carrier", [/\bcarrier\s*[:=-]\s*([A-Za-z][A-Za-z0-9 &.-]{1,30})/i]],
+    ["badgeReader", [/\bbadge\s*reader\s*[:=-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,30})/i]],
+    ["phoneModel", [/\bphone\s*model\s*[:=-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i]],
+    ["model", [/\bmodel\s*[:=-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i]],
+    ["application", [/\b(?:application|app)\s*[:=-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,40})/i]],
+    ["timeIssueOccurred", [/\b(?:time issue occurred|issue time)\s*[:=-]?\s*([^.;]+)/i]],
+    ["programName", [/\bprogram\s*name\s*[:=-]\s*([^.;]+)/i]],
+    ["companyName", [/\b(?:company|customer)\s*name\s*[:=-]\s*([^.;]+)/i]]
   ];
-  defs.forEach(([id, regex]) => {
-    const match=text.match(regex); if(!match) return;
-    if (overwrite || !value(id)) $(id).value = normalizeRecorderTerms(match[1]).replace(/\s+(?:and|then)$/i, "");
+
+  defs.forEach(([id, regexes]) => {
+    if (!overwrite && value(id)) return;
+    for (const line of lines) {
+      let found = null;
+      for (const regex of regexes) {
+        const match = line.match(regex);
+        if (match) { found = match[1]; break; }
+      }
+      if (found) {
+        $(id).value = normalizeRecorderTerms(found).replace(/\s+(?:and|then)$/i, "");
+        break;
+      }
+    }
   });
+
   renderRecorderDetectedSummary();
   setRecorderSaveStatus("Unsaved changes");
-  return Object.fromEntries(RECORDER_DETAIL_FIELDS.map(([id])=>[id,value(id)]));
+  return Object.fromEntries(RECORDER_DETAIL_FIELDS.map(([id]) => [id, value(id)]));
 }
-
 function renderRecorderDetectedSummary() {
   const found = RECORDER_DETAIL_FIELDS.map(([id,label])=>({label,value:value(id)})).filter((item)=>item.value);
   const box=$("detectedSummary");
@@ -469,8 +494,20 @@ function renderRecorderDetectedSummary() {
 
 function recorderIssueSummary(lines) {
   const candidates = lines.filter((line) => !isRecorderChatter(line));
-  const strong = /\b(?:unable to|not able to|can(?:not|'t)|could(?: not|n't)|fails? to|failed to|cannot|locked out|not working|issue with|problem with|error|access|log ?in|login)\b/i;
-  const action = /\b(?:sent|clicked|click|submit|requested|reset|advised|explained|asked|reviewed|go to|page number|follow step|receive an email)\b/i;
+
+  // Prefer the caller's stated request over greetings or findings discovered
+  // later during troubleshooting.
+  const gen2 = candidates.find((line) =>
+    /(?:verify|make sure|check|confirm).*(?:account).*(?:transition(?:ed|ing)?).*(?:gen\s*2)/i.test(line) ||
+    /(?:account).*(?:transition(?:ed|ing)?).*(?:gen\s*2)/i.test(line)
+  );
+  if (gen2) return "Caller wanted to verify whether the account has transitioned to Gen 2";
+
+  const assignment = candidates.find((line) => /not assigned.*(?:program|vending)|(?:program|vending).*not assigned/i.test(line));
+  if (assignment) return "Rep was not assigned to the customer's KeepStock programs";
+
+  const strong = /\b(?:unable to|not able to|can(?:not|'t)|could(?: not|n't)|fails? to|failed to|cannot|locked out|not working|issue with|problem with|error|access|log ?in|login|verify|transition)\b/i;
+  const action = /\b(?:sent|clicked|click|submit|requested|reset|advised|explained|asked|reviewed|go to|page number|follow step|receive an email|select all|save|assign)\b/i;
   let best = "";
   let bestScore = -999;
   candidates.forEach((line, index) => {
@@ -478,12 +515,13 @@ function recorderIssueSummary(lines) {
     if (strong.test(line)) score += 8;
     if (/\b(?:unable to|not able to|can(?:not|'t)|cannot|fails? to|failed to|locked out)\b/i.test(line)) score += 7;
     if (/\bKeepStock\b/i.test(line)) score += 3;
-    if (/\b(?:customer|user|caller|[A-Z][a-z]+\s+[A-Z][a-z]+)\b/.test(line)) score += 1;
-    if (action.test(line)) score -= 5;
+    if (/\b(?:verify|transition|gen\s*2)\b/i.test(line)) score += 5;
+    if (action.test(line)) score -= 4;
     if (line.length > 220) score -= 2;
     score -= index * 0.02;
     if (score > bestScore) { bestScore = score; best = line; }
   });
+
   best = normalizeRecorderTerms(best || candidates[0] || "");
   best = best.replace(/^(.{2,60}?)\s+so\s+\1\s+/i, "$1 ");
   best = best.replace(/\b(?:is not able to|was not able to)\b/i, "is unable to");
@@ -491,74 +529,123 @@ function recorderIssueSummary(lines) {
   best = best.replace(/\s+/g, " ").trim();
   return best;
 }
-
 function summarizeRecorderStep(line) {
   const text = normalizeRecorderTerms(line);
   const lower = text.toLowerCase();
+
   if (/teams/.test(lower) && /(?:job|document|message|sent)/.test(lower)) return "Sent the KeepStock password-reset job aid via Teams.";
   if (/clearspider/.test(lower) && /email/.test(lower) && /(?:submit|request|input|enter)/.test(lower)) return "Directed the caller to submit a ClearSpider password-reset request using the customer's email.";
   if (/receive an email|reset (?:his|her|their|the) password|reset password/.test(lower) && /email|link/.test(lower)) return "Advised that the customer will receive a reset email and must complete the reset link and remaining instructions.";
   if (/step\s*(?:1|one).*step\s*(?:7|seven)|follow step/.test(lower)) return "Advised the customer to follow the password-reset instructions through the final step.";
   if (/right account/.test(lower) && /KeepStock/.test(text)) return "Confirmed the correct Grainger.com account should be selected before opening KeepStock.";
   if (/password reset/.test(lower) && /required|request/.test(lower)) return "Confirmed a KeepStock password reset is required.";
+
+  if (/(?:not assigned|aren't assigned|not yet assigned).*(?:program|vending)/.test(lower)) return "Verified the rep was not assigned to the customer's KeepStock programs.";
+  if (/grainger\.com/.test(lower) && /keepstock/.test(lower) && /account information/.test(lower) && /(?:select all|assign all|save)/.test(lower)) return "Guided the rep to Grainger.com > KeepStock > Account Information, enter the account number, select all programs, and save to assign them to their profile.";
+  if (/keepstock web/.test(lower) && /(?:not the app|the app no|website)/.test(lower)) return "Clarified that program assignment must be completed in KeepStock Web, not the app.";
+  if (/(?:osr|account manager)/.test(lower) && /customer/.test(lower) && /transition/.test(lower)) return "Explained that the OSR/account manager and customer would be notified before a Gen 2 transition.";
+
   let concise = text
-    .replace(/^(?:all right|alright|okay|ok|gotcha|awesome|just a moment|just a second)[, ]*/i, "")
+    .replace(/^(?:all right|alright|okay|ok|gotcha|awesome|just a moment|just a second|yeah)[, ]*/i, "")
     .replace(/\b(?:let me know when[^.?!]*|bear with me[^.?!]*)\b/gi, "")
     .replace(/\s+/g, " ").trim();
   if (!concise || isRecorderChatter(concise)) return "";
   if (concise.length > 170) concise = `${concise.slice(0, 167).replace(/\s+\S*$/, "")}...`;
   return sentence(concise);
 }
-
 function recorderSections(raw = value("newRawNotes")) {
-  const cleaned=cleanNotesText(raw);
-  const lines=cleaned.split(/\n+/).map(normalizeRecorderTerms).filter(Boolean);
-  const metadata=/^(?:acct|account|device\s*id|machine\s*serial|serial|crib|program\s*(?:id|name)|company|customer\s*name|site\s*id|software\s*version|sw\s*version|application\s*version|app\s*version|imei|carrier|badge\s*reader|model|phone\s*model|time\s*issue)/i;
-  const resolutionRe=/(resolved|fixed|restored|working now|sync successful|synced successfully|successful|completed|issue cleared|no longer|customer confirmed|user confirmed)/i;
-  const actionRe=/\b(confirmed|verified|checked|located|looked|unplugged|plugged|pressed|restarted|rebooted|reset|synced|cleared|tested|opened|closed|sent|forwarded|advised|explained|asked|reviewed|contacted|power cycled|had user|investigated|escalated|click|clicked|submit|requested|receive an email|follow step|right account)\b/i;
-  const narrative=lines.filter((line)=>!metadata.test(line));
-  const meaningful=narrative.filter((line)=>!isRecorderChatter(line));
-  const explicitResolution=[...meaningful].reverse().find((line)=>resolutionRe.test(line));
-  const passwordResetContext=meaningful.some((line)=>/password reset|reset email|ClearSpider/i.test(line));
-  const resolution=explicitResolution || (passwordResetContext ? "Customer to complete the KeepStock password reset using the emailed reset link." : "Pending investigation or follow-up.");
-  const rawSteps=meaningful.filter((line)=>actionRe.test(line) && line!==explicitResolution);
-  const steps=unique(rawSteps.map(summarizeRecorderStep).filter(Boolean)).slice(0,5);
-  const issueSummary=recorderIssueSummary(meaningful);
-  const issue=value("newSubcategory") || issueSummary || "No issue description provided";
+  const cleaned = cleanNotesText(raw);
+  const lines = cleaned.split(/\n+/).map(normalizeRecorderTerms).filter(Boolean);
+  const metadata = /^(?:acct|account\s*(?:#|number)\s*[:=#-]|device\s*id|machine\s*serial|serial|crib|program\s*(?:id|name)\s*[:=-]|company\s*name\s*[:=-]|customer\s*name\s*[:=-]|site\s*id|software\s*version|sw\s*version|application\s*version|app\s*version|imei|carrier\s*[:=-]|badge\s*reader|model\s*[:=-]|phone\s*model|time\s*issue)/i;
+  const resolutionRe = /(resolved|fixed|restored|working now|sync successful|synced successfully|successful|completed|issue cleared|no longer|customer confirmed|user confirmed)/i;
+  const actionRe = /\b(confirmed|verified|checked|located|looked|unplugged|plugged|pressed|restarted|rebooted|reset|synced|cleared|tested|opened|closed|sent|forwarded|advised|explained|asked|reviewed|contacted|power cycled|had user|investigated|escalated|click|clicked|submit|requested|receive an email|follow step|right account|assigned|assign|select all|save|log into|log in|account information)\b/i;
+
+  const narrative = lines.filter((line) => !metadata.test(line));
+  const meaningful = narrative.filter((line) => !isRecorderChatter(line));
+  const explicitResolution = [...meaningful].reverse().find((line) => resolutionRe.test(line));
+
+  const gen2Context = meaningful.some((line) => /transition(?:ed|ing)?.*gen\s*2|gen\s*2.*transition/i.test(line));
+  const workstationCheck = meaningful.some((line) => /(?:don't|do not|didn't|did not).*see.*workstation|workstation.*(?:don't|do not|didn't|did not).*see/i.test(line));
+  const programUnassigned = meaningful.some((line) => /not assigned.*(?:program|vending)|(?:program|vending).*not assigned/i.test(line));
+  const programGuidance = meaningful.some((line) => /grainger\.com.*keepstock.*account information|account information.*select all.*save/i.test(line));
+  const keepstockWeb = meaningful.some((line) => /keepstock web/i.test(line));
+  const passwordResetContext = meaningful.some((line) => /password reset|reset email|ClearSpider/i.test(line));
+
+  const contextualSteps = [];
+  if (gen2Context && workstationCheck) contextualSteps.push("Checked Workstation and found no indication the account had transitioned to Gen 2.");
+  if (gen2Context && meaningful.some((line) => /(?:osr|account manager)/i.test(line) && /customer/i.test(line) && /transition/i.test(line))) {
+    contextualSteps.push("Explained that the OSR/account manager and customer would be notified before a Gen 2 transition.");
+  }
+  if (programUnassigned) contextualSteps.push("Verified the rep was not assigned to the customer's KeepStock programs.");
+  if (programGuidance) contextualSteps.push("Guided the rep to Grainger.com > KeepStock > Account Information, enter the account number, select all programs, and save to assign them to their profile.");
+  if (keepstockWeb && meaningful.some((line) => /app|website/i.test(line))) contextualSteps.push("Clarified that program assignment must be completed in KeepStock Web, not the app.");
+
+  const rawSteps = meaningful.filter((line) => {
+    if (!actionRe.test(line) || line === explicitResolution) return false;
+    if (programUnassigned && /\bassign(?:ed|ment)?\b/i.test(line)) return false;
+    if (programGuidance && /grainger\.com|account information|select all|assign all|\bsave\b/i.test(line)) return false;
+    if (keepstockWeb && /keepstock web|\bapp\b|website/i.test(line)) return false;
+    if (gen2Context && /transition|gen\s*2|workstation|\bosr\b|account manager/i.test(line)) return false;
+    return true;
+  });
+  const steps = unique([...contextualSteps, ...rawSteps.map(summarizeRecorderStep).filter(Boolean)]).slice(0, 6);
+
+  let resolution = "";
+  if (explicitResolution) {
+    resolution = summarizeRecorderStep(explicitResolution) || sentence(explicitResolution);
+  } else if (passwordResetContext) {
+    resolution = "Customer to complete the KeepStock password reset using the emailed reset link.";
+  } else if (gen2Context && (programUnassigned || programGuidance || keepstockWeb)) {
+    resolution = "Confirmed the account does not appear to have transitioned to Gen 2. Rep was trained on KeepStock Web program management.";
+  } else if (programUnassigned || programGuidance || keepstockWeb) {
+    resolution = "Rep was trained on KeepStock Web program management and program assignment.";
+  } else if (gen2Context && workstationCheck) {
+    resolution = "Rep was advised the account does not appear to have transitioned to Gen 2.";
+  }
+
+  const issueSummary = recorderIssueSummary(meaningful);
+  const issue = value("newSubcategory") || issueSummary || "";
   return { cleaned, lines, issue, issueSummary, steps, resolution };
 }
-
-function buildRecorderDetailedDescription(sections=recorderSections()) {
+function buildRecorderDetailedDescription(sections = recorderSections()) {
+  // Keep the ServiceNow template shape, but leave unknown fields blank instead
+  // of filling the ticket with "Not provided" placeholders.
   const meta = RECORDER_DETAIL_FIELDS
-    .map(([id,label])=>[label,value(id)])
-    .filter(([,fieldValue])=>fieldValue)
-    .map(([label,fieldValue])=>`${label}: ${fieldValue}`);
+    .map(([id, label]) => `${label}: ${value(id)}`)
+    .join("\n");
+
   const routing = [
     ["Category", value("newCategory")],
     ["Subcategory", value("newSubcategory")],
     ["Channel", value("channel")],
     ["Location", value("newLocation")]
-  ].filter(([,fieldValue])=>fieldValue).map(([label,fieldValue])=>`${label}: ${fieldValue}`);
-  const steps = sections.steps.length ? sections.steps.map((line)=>`- ${sentence(line)}`).join("\n") : "- No troubleshooting steps captured yet.";
-  const optionalMeta = [...meta, ...routing].join("\n");
-  return `Template Header (DO NOT REMOVE)\n**Delete any unused sections below**\n\n------------------------------------------------------------${optionalMeta ? `\n${optionalMeta}` : ""}\n\nIssue:\n${value("newSubcategory") || sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution / Next Step:\n${sentence(sections.resolution)}`;
-}
+  ].map(([label, fieldValue]) => `${label}: ${fieldValue}`).join("\n");
 
-function buildRecorderWorkNotes(sections=recorderSections()) {
-  const steps = sections.steps.length ? sections.steps.map((line)=>`- ${sentence(line)}`).join("\n") : "- No troubleshooting steps captured yet.";
-  const escalation = /escalat|t2|tier 2/i.test(sections.cleaned) ? "Escalated for additional investigation." : "[Only if escalated to T2]";
-  return `Issue:\n${value("newSubcategory") || sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution:\n${sentence(sections.resolution)}\n\nReason for Escalation: ${escalation}`;
-}
+  const steps = sections.steps.map((line) => `- ${sentence(line)}`).join("\n");
+  const issue = value("newSubcategory") || sentence(sections.issue);
+  const resolution = sentence(sections.resolution);
 
-function buildRecorderShortDescription(sections=recorderSections()) {
-  const subcategory=value("newSubcategory");
-  let issue=normalizeRecorderTerms(sections.issueSummary || "");
-  issue=issue.replace(/^(?:caller|customer|user|rep)\s+/i, "");
-  if (!issue && subcategory) issue=subcategory;
-  if (subcategory && issue && issue.toLowerCase() !== subcategory.toLowerCase()) return `${subcategory} - ${issue}`.slice(0,180);
-  return (issue || subcategory || "Incident support request").slice(0,180);
+  return `Template Header (DO NOT REMOVE)\n**Delete any unused sections below**\n\n------------------------------------------------------------\nSlack Thread URL:\n\nParent/PRB Template:\n\n${meta}\n\n${routing}\n\nIssue:\n${issue}\n\nTroubleshooting Steps:\n${steps}\n\nResolution / Next Step:\n${resolution}`;
 }
+function buildRecorderWorkNotes(sections = recorderSections()) {
+  const steps = sections.steps.map((line) => `- ${sentence(line)}`).join("\n");
+  const escalation = /escalat|t2|tier 2/i.test(sections.cleaned) ? "Escalated for additional investigation." : "";
+  return `Issue:\n${value("newSubcategory") || sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution:\n${sentence(sections.resolution)}\n\nReason for Escalation:\n${escalation}`;
+}
+function buildRecorderShortDescription(sections = recorderSections()) {
+  const subcategory = value("newSubcategory");
+  let issue = normalizeRecorderTerms(sections.issueSummary || "");
+  issue = issue
+    .replace(/^(?:caller|customer|user|rep)\s+(?:wanted to|needs? to|is trying to)\s+/i, "")
+    .replace(/^(?:caller|customer|user|rep)\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
+  if (issue) issue = issue[0].toUpperCase() + issue.slice(1);
+  if (!issue && subcategory) issue = subcategory;
+  if (subcategory && issue && issue.toLowerCase() !== subcategory.toLowerCase()) return `${subcategory} - ${issue}`.slice(0, 180);
+  return (issue || subcategory || "Incident support request").slice(0, 180);
+}
 function refreshRecorderDescriptions({ cleanNotes=false }={}) {
   if (cleanNotes) $("newRawNotes").value=cleanNotesText($("newRawNotes").value);
   extractRecorderDetails(false);
