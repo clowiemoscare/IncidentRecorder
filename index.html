@@ -201,15 +201,20 @@
           </article>
 
           <article class="card settings-card">
-            <h2><i data-lucide="waves"></i> Deepgram Voice Transcription</h2>
-            <p class="settings-help">The browser never receives your permanent Deepgram API key. Enter the URL of the secure token Worker included with this project.</p>
-            <label>Secure token endpoint<input id="deepgramTokenEndpoint" type="url" placeholder="https://incident-recorder-deepgram.your-subdomain.workers.dev/token" autocomplete="off" /></label>
+            <h2><i data-lucide="brain-circuit"></i> Deepgram + Cloudflare AI</h2>
+            <p class="settings-help">One secure Cloudflare Worker handles both services: it mints temporary Deepgram tokens for voice transcription and analyzes Rough Notes with Workers AI when you generate a ticket.</p>
+            <label>Secure Worker token endpoint<input id="deepgramTokenEndpoint" type="url" placeholder="https://incident-recorder-deepgram.your-subdomain.workers.dev/token" autocomplete="off" /></label>
             <div class="settings-actions">
               <button class="button primary" id="saveDeepgramBtn" type="button">Save Endpoint</button>
-              <button class="button" id="testDeepgramBtn" type="button">Test Connection</button>
+              <button class="button" id="testDeepgramBtn" type="button">Test Deepgram</button>
             </div>
             <div class="connection-status" id="deepgramSettingsStatus" aria-live="polite">Not configured</div>
-            <small>Your call audio is sent to Deepgram only while voice notes are running. Ticket fields and drafts remain stored in your browser.</small>
+            <div class="ai-settings-block">
+              <div><strong>Cloudflare Workers AI ticket analysis</strong><span>Uses the same Worker at <code>/analyze</code>. It extracts the issue, every troubleshooting action, the actual resolution, and conditional next steps from the full Rough Notes.</span></div>
+              <button class="button" id="testWorkersAiBtn" type="button">Test Ticket AI</button>
+            </div>
+            <div class="connection-status" id="workersAiSettingsStatus" aria-live="polite">Save the Worker endpoint first</div>
+            <small>Audio is sent to Deepgram only while voice notes are running. Rough Notes are sent to Cloudflare Workers AI only when you generate or test a ticket. Drafts and ticket formatting remain in your browser.</small>
           </article>
 
           <article class="card settings-card">
@@ -318,7 +323,7 @@
               </div>
 
               <div class="deepgram-recorder-note" id="deepgramRecorderNote">
-                <div><strong><i data-lucide="waves"></i> Deepgram Nova-3 transcription</strong><p id="deepgramRecorderHint">Configure the secure token endpoint in Settings. If it is not configured, the browser speech recognizer remains available as a fallback.</p></div>
+                <div><strong><i data-lucide="waves"></i> Deepgram Nova-3 transcription + Cloudflare ticket AI</strong><p id="deepgramRecorderHint">Deepgram captures the call. When you click Generate, the same secure Cloudflare Worker analyzes the full Rough Notes; if AI is unavailable, the local action-ledger generator is used automatically.</p></div>
                 <span class="provider-badge" id="voiceProviderBadge">Browser fallback</span>
               </div>
 
@@ -439,7 +444,7 @@
             <p>Write short lines while you are on the call. The app turns them into Detailed Description and Work Notes.</p>
             <ul><li>rep unable to sync machine</li><li>Account #: 887754409</li><li>Device ID: MJ0J6D84</li><li>located CP in NetCloud and confirmed offline</li><li>sync successful</li></ul>
           </div>
-          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>Voice audio is sent to Deepgram for live transcription while recording. Rough notes, generated tickets, drafts, and incident records remain stored in your browser.</span></div>
+          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>Voice audio is sent to Deepgram while recording. When you click Generate, the Rough Notes are sent to your Cloudflare Worker for Workers AI analysis. Manual ticket fields, drafts, and saved incident records remain stored in your browser.</span></div>
         </aside>
       </div>
     </div>

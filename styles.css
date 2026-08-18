@@ -457,3 +457,10 @@ tbody tr:hover { background: rgba(30,41,59,.45); }
   .recorder-routing-strip { grid-template-columns: 1fr; }
   .recorder-routing-strip label { grid-template-columns: 92px minmax(0,1fr); }
 }
+
+.ai-settings-block { margin-top: 12px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; background: rgba(15,23,42,.45); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ai-settings-block > div { display: grid; gap: 4px; min-width: 0; }
+.ai-settings-block strong { font-size: 12px; color: var(--text); }
+.ai-settings-block span { font-size: 10px; color: var(--muted); line-height: 1.45; }
+.ai-settings-block code { color: #bfdbfe; }
+@media (max-width: 720px) { .ai-settings-block { align-items: stretch; flex-direction: column; } }

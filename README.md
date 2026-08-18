@@ -1,8 +1,8 @@
-# IncidentRecorder - Deepgram build
+# IncidentRecorder - Deepgram + Cloudflare Workers AI
 
-This build keeps the existing static IncidentRecorder ticket workflow and replaces
-the primary voice transcription path with **Deepgram Nova-3**. The existing browser
-speech recognizer remains available as a fallback when Deepgram is not configured.
+This build uses **Deepgram Nova-3** for live voice transcription and **Cloudflare Workers AI** for understanding the completed Rough Notes when you click **Generate clean ticket**.
+
+The AI does not control the ServiceNow template. IncidentRecorder still owns Category/Subcategory, Detailed Description formatting, manual fields, drafts, and the special Onsite five-field template.
 
 ## Files to upload to the GitHub repository root
 
@@ -12,46 +12,55 @@ speech recognizer remains available as a fallback when Deepgram is not configure
 - `deepgram.js`
 - `README.md`
 
-You may also keep the `deepgram-worker` folder in the repository for deployment
-instructions. It contains no API key.
+The `deepgram-worker` folder contains the updated Cloudflare Worker and setup instructions. It contains no API keys.
 
-## Important: never put the Deepgram API key in GitHub
+## What happens during a call
 
-A public GitHub Pages site cannot safely contain a permanent API key. This project
-therefore includes a small Cloudflare Worker in `deepgram-worker/`.
+```text
+Microphone
+   -> Deepgram Nova-3
+   -> complete Rough Notes
+   -> Generate clean ticket
+   -> Cloudflare Workers AI
+   -> structured issue / troubleshooting / resolution analysis
+   -> IncidentRecorder ServiceNow formatting
+```
 
-The Worker stores the permanent key as a Cloudflare secret and returns a temporary
-Deepgram access token to the browser. See `deepgram-worker/README.md` for setup.
+### AI documentation rules
 
-After the Worker is deployed:
+Workers AI is instructed that only Chloe's support-agent voice is recorded. It must:
 
-1. Open IncidentRecorder.
-2. Go to **Settings > Deepgram Voice Transcription**.
-3. Paste the Worker URL ending in `/token`.
-4. Click **Save Endpoint**.
-5. Click **Test Connection**.
-6. Open New Incident and click **Start voice notes**.
+- scan the entire Rough Notes transcript;
+- keep every meaningful check, finding, lookup, instruction, configuration change, restart/reset, test, retest, training step, and verification in chronological order;
+- remove greetings, filler, holds, repetition, and closings;
+- never invent caller responses or actions;
+- keep conditional future guidance separate from actions actually completed;
+- never use an `if it still...` fallback as the resolution unless the notes later confirm it happened;
+- produce a resolution tied to the actual fix or training outcome;
+- return an empty resolution if the call does not confirm an outcome.
 
-## Voice behavior
+IncidentRecorder uses Cloudflare's structured JSON response rather than asking the model to write the final ticket free-form.
 
-- Deepgram Nova-3 is the primary transcription provider when the token endpoint is configured.
-- Domain keyterms are sent for KeepStock/Grainger terminology.
-- Interim text is shown while you speak; final text is appended to Rough Notes.
-- Rough Notes are never rewritten by the voice layer.
-- The Deepgram connection automatically reconnects until **Stop** is clicked.
-- A fresh temporary token is requested for a reconnect.
-- The microphone is released on Pause/Stop.
-- If Deepgram is not configured, the existing browser SpeechRecognition fallback is used.
+## Fallback behavior
 
-## Ticket rules retained
+If Workers AI cannot be reached, the AI binding is missing, the daily free allocation is exhausted, or the model returns an error, **Generate clean ticket still works**. The app automatically uses the local high-recall troubleshooting action ledger instead.
 
-- Ticket generation still uses the refined IncidentRecorder rules; Deepgram improves the transcript, not the business-rule template.
-- Unknown values stay blank.
-- Manually entered details are preserved.
-- Leading zeros in account numbers/IDs are preserved when entered or recognized.
-- Issue remains the selected Subcategory.
-- Rough Notes remain intact after generating a ticket.
-- For `Keepstock - Onsite` and `Keepstock Canada - Onsite`, Detailed Description contains only:
+Rough Notes are never rewritten by either generator.
+
+## Cloudflare setup change required
+
+If Deepgram is already working, keep your existing Worker URL and Deepgram secret. You only need to:
+
+1. replace the Worker code with the new `deepgram-worker/worker.mjs`;
+2. add a Workers AI binding named exactly `AI`;
+3. redeploy;
+4. open IncidentRecorder **Settings > Deepgram + Cloudflare AI** and click **Test Ticket AI**.
+
+See `deepgram-worker/README.md` for the full steps.
+
+## Detailed Description rule retained
+
+For `Keepstock - Onsite` and `Keepstock Canada - Onsite`, Detailed Description remains exactly:
 
 ```text
 Crib/Program id:
@@ -61,13 +70,15 @@ Site ID (If Applicable):
 Acct #:
 ```
 
+Blank values remain blank and manually entered values are not overwritten by the AI analysis.
+
 ## Privacy
 
-While voice notes are active, microphone audio is sent to Deepgram for transcription.
-Rough Notes, generated tickets, drafts, and saved incidents remain in browser storage
-unless you explicitly export or copy them.
+- Microphone audio is sent to Deepgram only while voice notes are active.
+- Rough Notes are sent to your Cloudflare Worker only when you click Generate (or Test Ticket AI).
+- The browser does not contain your permanent Deepgram API key.
+- Drafts, manual ticket fields, and saved incident records remain stored in the browser unless you explicitly export/copy them.
 
 ## Hosting
 
-Use GitHub Pages or another HTTPS host. Microphone access is not reliable from a
-`file://` URL. Current Chrome or Edge is recommended.
+Use GitHub Pages or another HTTPS host. Current Chrome or Edge is recommended for microphone access.
