@@ -526,6 +526,12 @@ function recorderIssueSummary(lines) {
   const candidates = lines.filter((line) => !isRecorderChatter(line));
   const joined = candidates.join(" ");
 
+  if (/initialization[^.]{0,100}(?:fail|failed)/i.test(joined) && /unable to communicate/i.test(joined)) {
+    return /(?:auxiliary|aux)\s+locker/i.test(joined)
+      ? "Machine initialization failed - unable to communicate with auxiliary locker"
+      : "Machine initialization failed - unable to communicate";
+  }
+
   if (/\bconflict\b/i.test(joined) && /\buser group\b/i.test(joined) && /\b(?:program|dispens|batter)\b/i.test(joined)) {
     return "User group dispensing limit conflicts with the program settings";
   }
@@ -600,6 +606,12 @@ function summarizeRecorderStep(line) {
   const text = normalizeRecorderTerms(line);
   const lower = text.toLowerCase();
 
+  if (/(?:both\s+machines?|both\s+machine).*\bpower\b|(?:check|confirm|make sure).*\bpower\b.*(?:both\s+machines?|both\s+machine)/.test(lower)) return "Confirmed both machines had power.";
+  if (/(?:serial|molex).*cable|cable.*(?:serial|molex)/.test(lower) && /(?:check|checked|connection|connections|reseat|reseating)/.test(lower)) return "Checked and reseated the serial/Molex cable connections.";
+  if (/power\s*cycl(?:e|ed|ing).*\bpc\b|\bpc\b.*power\s*cycl(?:e|ed|ing)/.test(lower)) return "Power cycled the PC.";
+  if (/(?:got|back|returned).*login screen|login screen.*(?:back|returned)/.test(lower)) return "Confirmed the PC returned to the login screen after the power cycle.";
+  if (/(?:machine|communicat|auxiliary|aux locker|initialization)/.test(lower) && /(?:after\s+logging\s+in|logged\s+(?:back\s+)?in).*\bresolved\b|(?:machine|communicat|locker)[^.]{0,120}confirm(?:ed)?[^.]*\bresolved\b/.test(lower)) return "Logged back in and confirmed the machine communication issue was resolved.";
+
   if (/teams/.test(lower) && /(?:job|document|message|sent)/.test(lower)) return "Sent the KeepStock password-reset job aid via Teams.";
   if (/clearspider/.test(lower) && /email/.test(lower) && /(?:submit|request|input|enter)/.test(lower)) return "Directed the caller to submit a ClearSpider password-reset request using the customer's email.";
   if (/receive an email|reset (?:his|her|their|the) password|reset password/.test(lower) && /email|link/.test(lower)) return "Advised that the customer will receive a reset email and must complete the reset link and remaining instructions.";
@@ -631,6 +643,358 @@ function summarizeRecorderStep(line) {
   if (concise.length > 190) concise = `${concise.slice(0, 187).replace(/\s+\S*$/, "")}...`;
   return sentence(concise);
 }
+
+function recorderTranscriptLines(raw) {
+  return String(raw || "")
+    .replace(/\r/g, "\n")
+    .replace(/[\u2022\u00b7]/g, "\n")
+    .split(/\n|;|(?<=[.!?])\s+/)
+    .map(normalizeRecorderTerms)
+    .filter(Boolean);
+}
+
+function recorderActionIsMetadata(line) {
+  const text = normalizeRecorderTerms(line);
+  if (/\bserial\s+cable\b|\bmolex\b/i.test(text)) return false;
+  return /^(?:acct|account\s*(?:#|number)\s*[:=#-]|device\s*id|machine\s*serial|serial\s*(?:#|number|:)\s*|crib\s*(?:#|number|id)\s*[:=#-]|program\s*(?:id|name)\s*[:=-]|company\s*name\s*[:=-]|customer\s*name\s*[:=-]|site\s*id|software\s*version|sw\s*version|application\s*version|app\s*version|imei\s*[:=-]|carrier\s*[:=-]|badge\s*reader|model\s*[:=-]|phone\s*model|time\s*issue|order\s*(?:#|number)\s*[:=-]|econnections?\s*status\s*[:=-]|sap\s*status\s*[:=-]|ebu\s*(?:number|#)\s*[:=-]|does\s+user\s+want\s+order\s+reposted\s*[:=-])/i.test(text);
+}
+
+function recorderActionSignal(text) {
+  const line = normalizeRecorderTerms(text).toLowerCase();
+  if (!line || recorderActionIsMetadata(line)) return false;
+  return /\b(?:check|checked|checking|confirm|confirmed|confirming|verify|verified|verifying|make sure|review|reviewed|reviewing|look up|looked up|looking up|pull(?:ed)? up|inspect|inspected|test|tested|testing|retest|try|tried|log(?:ged)? in|login|sign(?:ed)? in|go to|went to|navigate|navigated|open|opened|click|clicked|select|selected|enter|entered|type|typed|submit|submitted|search|searched|locate|located|find|found|identify|identified|determine|determined|unplug|unplugged|plug|plugged|reseat|reseated|reconnect|reconnected|disconnect|disconnected|connect|connected|power cycle|power cycled|power cycling|restart|restarted|reboot|rebooted|reset|resetting|clear|cleared|refresh|refreshed|reinstall|reinstalled|update|updated|change|changed|configure|configured|set to|remove|removed|add|added|assign|assigned|save|saved|sync|synced|run|ran|ping|pinged|pinging|scan|scanned|replace|replaced|enable|enabled|disable|disabled|turn on|turned on|turn off|turned off|send|sent|email|emailed|message|messaged|call|called|contact|contacted|escalate|escalated|forward|forwarded|advise|advised|instruct|instructed|guide|guided|explain|explained|train|trained|walk through|walked through|asked|had (?:the )?(?:user|rep|caller|customer)|diagnos|investigat|conflict|not assigned|working now|returned to|back to|resolved|fixed|restored|issue cleared|no longer|successful|failed|error message)\b/i.test(line);
+}
+
+function recorderSplitActionClauses(text) {
+  const normalized = normalizeRecorderTerms(text)
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return [];
+  return normalized
+    .split(/\s+(?:and then|then|after that|next|finally)\s+|,\s*(?=(?:we|i)\s+(?:checked|confirmed|verified|reviewed|tested|retested|restarted|rebooted|reset|power cycled|reseated|reconnected|changed|updated|removed|added|assigned|saved|synced|opened|logged in)\b)/i)
+    .map((part) => part.replace(/^(?:and then|then|after that|next|finally)[, ]*/i, "").trim())
+    .filter(Boolean);
+}
+
+function recorderGenericActionStep(text) {
+  let clean = normalizeRecorderTerms(text)
+    .replace(/^(?:all right|alright|okay|ok|gotcha|awesome|yeah|yep|so|and|then|next|after that|finally)[, ]*/i, "")
+    .replace(/\b(?:bear with me|just a moment|just a second|let me know when[^.?!]*)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean || recorderActionIsMetadata(clean)) return "";
+  const lower = clean.toLowerCase();
+
+  // Do not turn the problem statement alone into a troubleshooting step.
+  if (/^(?:the )?(?:issue|problem|error|machine|customer|user|rep)\b/i.test(clean) && !/\b(?:checked|confirmed|verified|found|identified|reviewed|tested|changed|reset|restarted|rebooted|reseated|resolved|fixed)\b/i.test(clean)) return "";
+
+  if (/^(?:we|i)\s+(?:are|'re|am|'m)\s+/.test(lower)) clean = clean.replace(/^(?:we|i)\s+(?:are|'re|am|'m)\s+/i, "");
+  if (/^(?:we|i)\s+/.test(lower)) clean = clean.replace(/^(?:we|i)\s+/i, "");
+
+  if (/\bworking now\b/i.test(clean) && /\bconfirm(?:ed)?\b/i.test(clean) && /\bresolved\b/i.test(clean)) {
+    return "Confirmed the system was working and the issue was resolved.";
+  }
+
+  const afterAction = clean.match(/^after\s+(.+?)\s+(?:we|i)\s+(checked|confirmed|verified|reviewed|tested|retested|restarted|rebooted|reset|power cycled|reseated|reconnected|changed|updated|removed|added|assigned|saved|synced|opened|logged in)\s+(.+)$/i);
+  if (afterAction) {
+    const [, rawContextText, actionVerb, rawObjectText] = afterAction;
+    const contextText = rawContextText.replace(/[.!?]+$/g, "");
+    const objectText = rawObjectText.replace(/[.!?]+$/g, "");
+    const pastMap = {
+      checked:"Checked", confirmed:"Confirmed", verified:"Verified", reviewed:"Reviewed", tested:"Tested", retested:"Retested",
+      restarted:"Restarted", rebooted:"Rebooted", reset:"Reset", "power cycled":"Power cycled", reseated:"Reseated",
+      reconnected:"Reconnected", changed:"Changed", updated:"Updated", removed:"Removed", added:"Added", assigned:"Assigned",
+      saved:"Saved", synced:"Synced", opened:"Opened", "logged in":"Logged in"
+    };
+    return sentence(`${pastMap[actionVerb.toLowerCase()] || actionVerb} ${objectText} after ${contextText}`);
+  }
+
+  const transforms = [
+    [/^(?:check|checking)\b/i, "Checked"],
+    [/^(?:confirm|confirming|make sure)\b/i, "Confirmed"],
+    [/^(?:verify|verifying)\b/i, "Verified"],
+    [/^(?:review|reviewing)\b/i, "Reviewed"],
+    [/^(?:look up|looking up)\b/i, "Looked up"],
+    [/^(?:pull up|pulling up)\b/i, "Pulled up"],
+    [/^(?:inspect|inspecting)\b/i, "Inspected"],
+    [/^(?:test|testing)\b/i, "Tested"],
+    [/^retest\b/i, "Retested"],
+    [/^(?:restart|restarting)\b/i, "Restarted"],
+    [/^(?:reboot|rebooting)\b/i, "Rebooted"],
+    [/^(?:reset|resetting)\b/i, "Reset"],
+    [/^(?:power cycle|power cycling)\b/i, "Power cycled"],
+    [/^(?:reseat|reseating)\b/i, "Reseated"],
+    [/^(?:reconnect|reconnecting)\b/i, "Reconnected"],
+    [/^(?:disconnect|disconnecting)\b/i, "Disconnected"],
+    [/^(?:connect|connecting)\b/i, "Connected"],
+    [/^(?:remove|removing)\b/i, "Removed"],
+    [/^(?:add|adding)\b/i, "Added"],
+    [/^(?:assign|assigning)\b/i, "Assigned"],
+    [/^(?:change|changing)\b/i, "Changed"],
+    [/^(?:configure|configuring)\b/i, "Configured"],
+    [/^(?:save|saving)\b/i, "Saved"],
+    [/^(?:sync|syncing)\b/i, "Synced"],
+    [/^(?:ping|pinged|pinging)\b/i, "Pinged"],
+    [/^(?:scan|scanning)\b/i, "Scanned"],
+    [/^(?:run|running)\b/i, "Ran"],
+    [/^(?:replace|replacing)\b/i, "Replaced"],
+    [/^(?:enable|enabling)\b/i, "Enabled"],
+    [/^(?:disable|disabling)\b/i, "Disabled"],
+    [/^(?:unplug|unplugging)\b/i, "Unplugged"],
+    [/^(?:plug in|plugging in|plug)\b/i, "Plugged in"],
+    [/^(?:send|sending)\b/i, "Sent"],
+    [/^(?:contact|contacting)\b/i, "Contacted"],
+
+    [/^(?:open|opening)\b/i, "Opened"],
+    [/^(?:click|clicking)\b/i, "Clicked"],
+    [/^(?:select|selecting)\b/i, "Selected"],
+    [/^(?:enter|entering)\b/i, "Entered"],
+    [/^(?:submit|submitting)\b/i, "Submitted"],
+    [/^(?:log in|logging in|login)\b/i, "Logged in"],
+    [/^(?:go to|going to|navigate to|navigating to)\b/i, "Navigated to"],
+    [/^(?:explain|explaining)\b/i, "Explained"],
+    [/^(?:advise|advising)\b/i, "Advised"],
+    [/^(?:instruct|instructing)\b/i, "Instructed"],
+    [/^(?:guide|guiding)\b/i, "Guided"],
+    [/^(?:train|training)\b/i, "Trained"],
+    [/^(?:identify|identifying)\b/i, "Identified"],
+    [/^(?:find|finding)\b/i, "Found"],
+  ];
+  for (const [pattern, replacement] of transforms) {
+    if (pattern.test(clean)) {
+      clean = clean.replace(pattern, replacement);
+      break;
+    }
+  }
+
+  // Imperative guidance is an action even when spoken directly to the caller.
+  if (/^(?:you need to|you have to|you should|i need you to|i'm going to need you to|i am going to need you to)\b/i.test(clean)) {
+    clean = `Instructed the rep to ${clean.replace(/^(?:you need to|you have to|you should|i need you to|i'm going to need you to|i am going to need you to)\s*/i, "")}`;
+  }
+
+  const words = clean.split(/\s+/).filter(Boolean);
+  const incompleteEnding = /\b(?:the|a|an|to|and|or|that|this|it|you|we|i|for|on|in|with|from|of|will|would|should|could|can|is|are|was|were|be)\.?$/i.test(clean);
+  const conciseTechnicalAction = words.length >= 2 && /^(?:Pinged|Scanned|Ran|Replaced|Enabled|Disabled|Unplugged|Plugged in|Sent|Contacted|Restarted|Rebooted|Reset|Synced|Submitted)\b/i.test(clean);
+  if (incompleteEnding || (words.length < 3 && !conciseTechnicalAction)) return "";
+
+  if (/^(?:checked|confirmed|verified|reviewed|looked up|pulled up|inspected|tested|retested|restarted|rebooted|reset|power cycled|reseated|reconnected|disconnected|connected|removed|added|assigned|changed|configured|saved|synced|opened|clicked|selected|entered|submitted|logged in|navigated to|explained|advised|instructed|guided|trained|identified|found|sent|emailed|contacted|escalated|pinged|scanned|ran|replaced|enabled|disabled|unplugged|plugged in)\b/i.test(clean)) {
+    return sentence(clean);
+  }
+
+  // Findings that describe a configuration/state are useful troubleshooting evidence.
+  if (/\b(?:not assigned|set to|dispensing|conflict|returned to|back to|working now|resolved|fixed|restored|successful)\b/i.test(clean)) {
+    return sentence(clean);
+  }
+  return "";
+}
+
+function recorderStepTokens(text) {
+  const stop = new Set(["the","a","an","to","and","or","of","in","on","for","with","after","before","then","that","this","we","i","rep","user","customer","caller","was","were","is","are","be","been","being","it"]);
+  return normalizeRecorderTerms(text).toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((token) => token.length > 2 && !stop.has(token)).map((token) => token.replace(/(?:ing|ed)$/i, "").replace(/ies$/i, "y").replace(/s$/i, ""));
+}
+
+function recorderStepsOverlap(a, b) {
+  const left = new Set(recorderStepTokens(a));
+  const right = new Set(recorderStepTokens(b));
+  if (!left.size || !right.size) return false;
+  let shared = 0;
+  left.forEach((token) => { if (right.has(token)) shared += 1; });
+  const ratio = shared / Math.min(left.size, right.size);
+  const aKey = String(a).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const bKey = String(b).toLowerCase().replace(/[^a-z0-9]/g, "");
+  return aKey === bKey || (Math.min(aKey.length, bKey.length) > 24 && (aKey.includes(bKey) || bKey.includes(aKey))) || (shared >= 5 && ratio >= 0.85);
+}
+
+function recorderIsCanonicalStep(step) {
+  return /^(?:Confirmed both machines had power|Checked and reseated the serial\/Molex cable connections|Checked the serial\/Molex cable connections|Power cycled the PC|Confirmed the PC returned to the login screen|Logged back in and confirmed|Sent the KeepStock password-reset job aid|Directed the caller to submit a ClearSpider|Advised that the customer will receive a reset email|Advised the customer to follow the password-reset instructions|Confirmed the correct Grainger\.com account|Confirmed a KeepStock password reset is required|Verified the rep was not assigned|Guided the rep to Grainger\.com|Clarified that program assignment|Explained that the OSR|Guided the rep to log in to Grainger\.com|Directed the rep to User & Group Management|Advised the rep to follow the prompts|Instructed the rep to assign the appropriate programs|Identified a configuration conflict|Advised removing the item from the user group|Explained that the weekly dispense allowance|Advised testing the configuration)/i.test(sentence(step));
+}
+
+function recorderBuildActionLedger(raw) {
+  const lines = recorderTranscriptLines(raw);
+  const candidates = [];
+  const add = (index, text, priority = 1) => {
+    const step = sentence(text);
+    if (!step || isRecorderChatter(step) || recorderActionIsMetadata(step)) return;
+    candidates.push({ index, text: step, priority });
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (recorderActionIsMetadata(line)) continue;
+
+    const window2 = [line, lines[i + 1]].filter(Boolean).join(" ");
+    const window3 = [line, lines[i + 1], lines[i + 2]].filter(Boolean).join(" ");
+
+    // Feed overlapping windows through the domain-aware summarizer. This catches
+    // Deepgram fragments such as "make sure both machine" + "got power".
+    [window3, window2].forEach((windowText) => {
+      if (!recorderActionSignal(windowText)) return;
+      const summarized = summarizeRecorderStep(windowText);
+      if (summarized && recorderIsCanonicalStep(summarized)) add(i, summarized, 3);
+    });
+
+    if (!recorderActionSignal(line)) continue;
+    const clauses = recorderSplitActionClauses(line);
+    (clauses.length ? clauses : [line]).forEach((clause) => {
+      if (!recorderActionSignal(clause)) return;
+      const specialized = summarizeRecorderStep(clause);
+      const generic = recorderGenericActionStep(clause);
+      if (specialized && recorderIsCanonicalStep(specialized)) add(i, specialized, 3);
+      if (generic) add(i, generic, 1);
+    });
+  }
+
+  // Prefer the most specific wording for the same underlying action while retaining
+  // all distinct actions. Sorting by source index keeps the call chronology.
+  candidates.sort((a, b) => a.index - b.index || b.priority - a.priority);
+  const kept = [];
+  candidates.forEach((candidate) => {
+    const duplicateIndex = kept.findIndex((item) => Math.abs(item.index - candidate.index) <= 3 && recorderStepsOverlap(item.text, candidate.text));
+    if (duplicateIndex === -1) {
+      kept.push(candidate);
+      return;
+    }
+    const existing = kept[duplicateIndex];
+    if (candidate.priority > existing.priority || (candidate.priority === existing.priority && candidate.text.length > existing.text.length)) {
+      kept[duplicateIndex] = candidate;
+    }
+  });
+
+  // Remove generic fragments when a stronger canonical step for the same concept exists.
+  const texts = kept.map((item) => item.text);
+  const has = (re) => texts.some((text) => re.test(text));
+  return kept
+    .filter((item) => {
+      const lower = item.text.toLowerCase();
+      if (has(/confirmed both machines had power/i) && /(?:checked|confirmed).*power/i.test(lower) && !/both machines had power/i.test(lower)) return false;
+      if (has(/checked and reseated the serial\/molex cable connections/i) && /(?:serial|molex|cable connection)/i.test(lower) && !/checked and reseated/i.test(lower)) return false;
+      if (has(/power cycled the pc/i) && /power cycl/i.test(lower) && !/^power cycled the pc\.?$/i.test(item.text)) return false;
+      if (has(/returned to the login screen/i) && /login screen/i.test(lower) && !/returned to the login screen/i.test(lower)) return false;
+      return true;
+    })
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.text);
+}
+
+function recorderPreferCanonicalSteps(steps) {
+  const has = (re) => steps.some((step) => re.test(step));
+  return steps.filter((step) => {
+    const lower = step.toLowerCase();
+    if (has(/Confirmed both machines had power/i) && /(?:both machines?|both machine)|^Checked (?:for )?(?:the )?power\b|^Confirmed (?:the )?power\b/i.test(step) && !/Confirmed both machines had power/i.test(step)) return false;
+    if (has(/Checked and reseated the serial\/Molex cable connections/i) && /(?:serial|molex|cable connection)/i.test(step) && !/Checked and reseated/i.test(step)) return false;
+    if (has(/Power cycled the PC/i) && /^Power cycl/i.test(step) && !/^Power cycled the PC\.?$/i.test(step)) return false;
+    if (has(/Confirmed the PC returned to the login screen/i) && /login screen/i.test(step) && !/Confirmed the PC returned/i.test(step)) return false;
+    if (has(/Logged back in and confirmed the machine communication issue was resolved/i) && /(?:\blogged (?:back )?in\b|\bresolved\b)/i.test(step) && !/Logged back in and confirmed/i.test(step)) return false;
+
+    if (has(/Guided the rep to log in to Grainger\.com and open KeepStock/i) && /(?:grainger\.com|navigated to KeepStock|open KeepStock|go login)/i.test(step) && !/Guided the rep to log in/i.test(step)) return false;
+    if (has(/Directed the rep to User & Group Management > Users > Create User/i) && /(?:user.*group management|create user)/i.test(step) && !/Directed the rep to User & Group Management/i.test(step)) return false;
+    if (has(/Advised the rep to follow the prompts/i) && /follow.*prompt/i.test(step) && !/Advised the rep/i.test(step)) return false;
+    if (has(/Instructed the rep to assign the appropriate programs/i) && /assign.*program/i.test(step) && !/Instructed the rep/i.test(step)) return false;
+
+    if (has(/Sent the KeepStock password-reset job aid via Teams/i) && /(?:teams|job aid|message)/i.test(step) && !/Sent the KeepStock password-reset/i.test(step)) return false;
+    if (has(/Directed the caller to submit a ClearSpider password-reset request/i) && /(?:clearspider|submit.*request|email address)/i.test(step) && !/Directed the caller to submit/i.test(step)) return false;
+    if (has(/Advised that the customer will receive a reset email/i) && /(?:receive.*email|reset.*password|reset link)/i.test(step) && !/Advised that the customer will receive/i.test(step)) return false;
+    if (has(/Advised the customer to follow the password-reset instructions/i) && /(?:follow step|page number|step one|step 1)/i.test(step) && !/Advised the customer to follow/i.test(step)) return false;
+    if (has(/(?:ClearSpider password-reset request|reset email|password-reset instructions)/i) && /^Reset\s+\w+\.?$/i.test(step)) return false;
+
+    if (has(/Checked the program dispensing setting/i) && /program.*dispens|dispens.*program/i.test(step) && !/Checked the program dispensing setting/i.test(step)) return false;
+    if (has(/Identified a configuration conflict:/i) && /(?:conflict|confusion).*(?:user group|program)|user group.*conflict/i.test(step) && !/Identified a configuration conflict:/i.test(step)) return false;
+    if (has(/Advised removing the item from the user group, adding it back, and setting the user-group limit/i) && /Advised removing the item from the user group and adding it back/i.test(step) && !/setting the user-group limit/i.test(step)) return false;
+    if (has(/Advised removing the item from the user group/i) && /^(?:Removed|Added).*\b(?:item|back)|(?:remove|removed|add|added).*(?:item|user group)/i.test(step) && !/Advised removing the item/i.test(step)) return false;
+    if (has(/Explained that the weekly dispense allowance resets/i) && /(?:week|weekly).*(?:reset|start over)/i.test(step) && !/Explained that the weekly/i.test(step)) return false;
+    return true;
+  });
+}
+
+function recorderMergeTroubleshootingSteps(raw, contextualSteps, ledgerSteps) {
+  const sourceLines = recorderTranscriptLines(raw);
+  const sourceIndex = (step, fallback) => {
+    const conceptPatterns = [
+      [/Confirmed both machines had power/i, /both\s+machines?.*power|make sure.*both\s+machine|got power/i],
+      [/serial\/Molex cable connections/i, /serial\s+cable|molex|cable connections/i],
+      [/Power cycled the PC/i, /power\s*cycl.*pc/i],
+      [/returned to the login screen/i, /back to the login screen|returned.*login screen/i],
+      [/Logged back in and confirmed/i, /logging in|logged.*in|resolved/i],
+      [/log in to Grainger\.com and open KeepStock/i, /grainger\.com.*KeepStock|login.*Grainger\.com/i],
+      [/User & Group Management/i, /user.*group management|under users.*create user/i],
+      [/follow the prompts/i, /follow.*prom/i],
+      [/assign the appropriate programs/i, /assign.*program/i],
+      [/password-reset job aid via Teams/i, /teams/i],
+      [/ClearSpider password-reset request/i, /ClearSpider.*email|submit request/i],
+      [/receive a reset email/i, /receive.*email|reset.*email/i],
+      [/follow the password-reset instructions/i, /follow step|step one|step 1/i],
+      [/program dispensing setting/i, /(?:it is|it\'s|program.*is).*dispensing/i],
+      [/configuration conflict:/i, /conflict|confusion/i],
+      [/removing the item from the user group/i, /remove.*item|add it back/i],
+      [/limited to .* batteries per week/i, /only.*dispense.*batter.*week/i],
+      [/weekly dispense allowance resets/i, /after a week.*start over|weekly.*reset/i],
+      [/testing the updated user-group configuration/i, /see how that goes|retest|test.*after/i],
+    ];
+    for (const [stepPattern, sourcePattern] of conceptPatterns) {
+      if (!stepPattern.test(step)) continue;
+      const direct = sourceLines.findIndex((line, index) => sourcePattern.test([line, sourceLines[index + 1], sourceLines[index + 2]].filter(Boolean).join(" ")));
+      if (direct >= 0) return direct;
+    }
+    const tokens = new Set(recorderStepTokens(step));
+    let bestIndex = fallback;
+    let bestScore = 0;
+    for (let i = 0; i < sourceLines.length; i += 1) {
+      const window = [sourceLines[i], sourceLines[i + 1], sourceLines[i + 2]].filter(Boolean).join(" ");
+      const windowTokens = new Set(recorderStepTokens(window));
+      let score = 0;
+      tokens.forEach((token) => { if (windowTokens.has(token)) score += 1; });
+      if (score > bestScore) { bestScore = score; bestIndex = i; }
+    }
+    return bestIndex;
+  };
+
+  const entries = [];
+  ledgerSteps.forEach((text, index) => entries.push({ text: sentence(text), index: sourceIndex(text, index), priority: 1 }));
+  contextualSteps.forEach((text, index) => entries.push({ text: sentence(text), index: sourceIndex(text, sourceLines.length + index), priority: 3 }));
+  entries.sort((a, b) => a.index - b.index || b.priority - a.priority);
+
+  const kept = [];
+  entries.forEach((entry) => {
+    const duplicateIndex = kept.findIndex((item) => recorderStepsOverlap(item.text, entry.text));
+    if (duplicateIndex === -1) {
+      kept.push(entry);
+      return;
+    }
+    if (entry.priority > kept[duplicateIndex].priority) kept[duplicateIndex] = entry;
+  });
+  return recorderPreferCanonicalSteps(kept.sort((a, b) => a.index - b.index).map((entry) => entry.text));
+}
+
+function recorderResolutionActionPhrase(step) {
+  let text = sentence(step).replace(/[.!?]+$/, "");
+  const replacements = [
+    [/^Power cycled\b/i, "power cycling"], [/^Restarted\b/i, "restarting"], [/^Rebooted\b/i, "rebooting"],
+    [/^Reset\b/i, "resetting"], [/^Reseated\b/i, "reseating"], [/^Reconnected\b/i, "reconnecting"],
+    [/^Changed\b/i, "changing"], [/^Configured\b/i, "configuring"], [/^Updated\b/i, "updating"],
+    [/^Removed\b/i, "removing"], [/^Added\b/i, "adding"], [/^Assigned\b/i, "assigning"],
+    [/^Reinstalled\b/i, "reinstalling"], [/^Cleared\b/i, "clearing"], [/^Synced\b/i, "syncing"],
+    [/^Enabled\b/i, "enabling"], [/^Disabled\b/i, "disabling"], [/^Replaced\b/i, "replacing"],
+    [/^Tested\b/i, "testing"], [/^Retested\b/i, "retesting"]
+  ];
+  for (const [pattern, replacement] of replacements) {
+    if (pattern.test(text)) return text.replace(pattern, replacement);
+  }
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+function recorderResolutionFromActions(explicitResolution, steps) {
+  if (!explicitResolution) return "";
+  const resolutionText = normalizeRecorderTerms(explicitResolution);
+  const vague = /\b(?:resolved|fixed|working now|issue cleared|successful)\b/i.test(resolutionText) && resolutionText.split(/\s+/).length < 18;
+  if (!vague) return summarizeRecorderStep(resolutionText) || sentence(resolutionText);
+
+  const fixSteps = steps.filter((step) => /\b(?:reseated|reconnected|restarted|rebooted|reset|power cycled|changed|configured|updated|removed|added|assigned|reinstalled|cleared|synced|enabled|disabled|replaced)\b/i.test(step));
+  if (!fixSteps.length) return summarizeRecorderStep(resolutionText) || sentence(resolutionText);
+  const recent = fixSteps.slice(-2).map(recorderResolutionActionPhrase);
+  if (recent.length === 1) return `Resolved the issue after ${recent[0]}.`;
+  return `Resolved the issue after ${recent[0]} and ${recent[1]}.`;
+}
+
 function recorderSections(raw = value("newRawNotes")) {
   const cleaned = cleanNotesText(raw);
   const lines = cleaned.split(/\n+/).map(normalizeRecorderTerms).filter(Boolean);
@@ -638,7 +1002,12 @@ function recorderSections(raw = value("newRawNotes")) {
   const resolutionRe = /(resolved|fixed|restored|working now|sync successful|synced successfully|successful|completed|issue cleared|no longer|customer confirmed|user confirmed)/i;
   const actionRe = /\b(confirmed|verified|checked|located|looked|pulled up|unplugged|plugged|pressed|restarted|rebooted|reset|synced|cleared|tested|opened|closed|sent|forwarded|advised|explained|asked|reviewed|contacted|power cycled|had user|investigated|escalated|click|clicked|submit|requested|receive an email|follow step|follow|right account|assigned|assign|select all|save|log into|log in|login|go to|open|create user|user and group management|account information|change|remove|add it back|dispens|conflict|per week|start over|pack of)\b/i;
 
-  const narrative = lines.filter((line) => !metadata.test(line));
+  const narrative = lines.filter((line) => {
+    // "serial" can be a metadata field, but "serial cable" is a troubleshooting
+    // instruction and must remain in the narrative.
+    if (/\bserial\s+cable\b|\bmolex\b/i.test(line)) return true;
+    return !metadata.test(line);
+  });
   const meaningful = narrative.filter((line) => !isRecorderChatter(line));
   const combined = meaningful.join(" ");
   const explicitResolution = [...meaningful].reverse().find((line) => resolutionRe.test(line));
@@ -649,6 +1018,19 @@ function recorderSections(raw = value("newRawNotes")) {
   const programGuidance = meaningful.some((line) => /grainger\.com.*keepstock.*account information|account information.*select all.*save/i.test(line));
   const keepstockWeb = meaningful.some((line) => /keepstock web/i.test(line));
   const passwordResetContext = meaningful.some((line) => /password reset|reset email|ClearSpider/i.test(line));
+
+  // Machine / auxiliary-locker calls are commonly captured from the agent side only.
+  // Treat the agent's checks, reseats, reboots and verification statements as the
+  // authoritative troubleshooting sequence even when the caller is not recorded.
+  const machineCommunicationContext =
+    (/initialization[^.]{0,120}(?:fail|failed)/i.test(combined) && /unable to communicate/i.test(combined)) ||
+    (/unable to communicate/i.test(combined) && /(?:auxiliary|aux)\s+locker/i.test(combined));
+  const machinePowerConfirmed = /(?:both\s+machines?|both\s+machine).*\bpower\b|(?:check|confirm|make sure).*\bpower\b.*(?:both\s+machines?|both\s+machine)/i.test(combined);
+  const machineCableChecked = /(?:serial|molex).*cable|cable.*(?:serial|molex)/i.test(combined);
+  const machineCableReseated = /reseat|reseating|reseated/i.test(combined);
+  const machinePowerCycled = /power\s*cycl(?:e|ed|ing).*\bpc\b|\bpc\b.*power\s*cycl(?:e|ed|ing)/i.test(combined);
+  const machineLoginRestored = /(?:got|back|returned).*login screen|login screen.*(?:back|returned)/i.test(combined);
+  const machineVerifiedResolved = /(?:after\s+logging\s+in|logged\s+(?:back\s+)?in)[^.]{0,120}\bresolved\b|confirm(?:ed)?[^.]{0,120}\bresolved\b/i.test(combined);
   const createUserContext = meaningful.some((line) =>
     /(?:need|needs|assistance|help|how to|want to).*(?:create|add).*(?:new\s+)?user.*keepstock/i.test(line) ||
     /(?:create|add).*(?:new\s+)?user.*keepstock/i.test(line)
@@ -674,6 +1056,17 @@ function recorderSections(raw = value("newRawNotes")) {
   const lookedUpProgram = meaningful.some((line) => /got that pulled up|pulled (?:it|that) up|look(?:ed)? it up/i.test(line));
 
   const contextualSteps = [];
+
+  if (machineCommunicationContext) {
+    if (machinePowerConfirmed) contextualSteps.push("Confirmed both machines had power.");
+    if (machineCableChecked) contextualSteps.push(machineCableReseated
+      ? "Checked and reseated the serial/Molex cable connections."
+      : "Checked the serial/Molex cable connections.");
+    if (machinePowerCycled) contextualSteps.push("Power cycled the PC.");
+    if (machineLoginRestored) contextualSteps.push("Confirmed the PC returned to the login screen after the power cycle.");
+    if (machineVerifiedResolved) contextualSteps.push("Logged back in and confirmed the machine communication issue was resolved.");
+  }
+
   if (gen2Context && workstationCheck) contextualSteps.push("Checked Workstation and found no indication the account had transitioned to Gen 2.");
   if (gen2Context && meaningful.some((line) => /(?:osr|account manager)/i.test(line) && /customer/i.test(line) && /transition/i.test(line))) contextualSteps.push("Explained that the OSR/account manager and customer would be notified before a Gen 2 transition.");
   if (programUnassigned) contextualSteps.push("Verified the rep was not assigned to the customer's KeepStock programs.");
@@ -703,21 +1096,20 @@ function recorderSections(raw = value("newRawNotes")) {
     if (retestContext) contextualSteps.push("Advised testing the updated user-group configuration after the change.");
   }
 
-  const rawSteps = meaningful.filter((line) => {
-    if (!actionRe.test(line) || line === explicitResolution) return false;
-    if (programUnassigned && /\b(?:not assigned|aren't assigned|not yet assigned)\b/i.test(line)) return false;
-    if (programGuidance && /grainger\.com|account information|select all|assign all|\bsave\b/i.test(line)) return false;
-    if (keepstockWeb && /keepstock web|\bapp\b|website/i.test(line)) return false;
-    if (gen2Context && /transition|gen\s*2|workstation|\bosr\b|account manager/i.test(line)) return false;
-    if (createUserContext && /grainger\.com.*keepstock|user\s*(?:and|&)\s*group\s*management|under\s+users.*create\s+user|follow\s+(?:the\s+)?(?:prompts?|prom\b|instructions?)|assign(?:ed|ing)?\s+(?:some|the|appropriate|all)?\s*programs?.*(?:new\s+)?user/i.test(line)) return false;
-    if (dispenseConflictContext && /user group|dispens|batter|pack of|conflict|remove.*(?:item|one)|add it back|after a week|see how that goes|pulled up|look(?:ed)? it up/i.test(line)) return false;
-    return true;
-  });
-  const steps = unique([...contextualSteps, ...rawSteps.map(summarizeRecorderStep).filter(Boolean)]);
+  const ledgerSteps = recorderBuildActionLedger(raw);
+  const steps = recorderMergeTroubleshootingSteps(raw, contextualSteps, ledgerSteps);
 
   let resolution = "";
-  if (explicitResolution) {
-    resolution = summarizeRecorderStep(explicitResolution) || sentence(explicitResolution);
+  if (machineCommunicationContext && machineVerifiedResolved && (machinePowerCycled || machineCableChecked)) {
+    if (machinePowerCycled && machineCableChecked) {
+      resolution = "Resolved the machine initialization/communication issue by reseating the serial/Molex cable connections and power cycling the PC; login and machine communication were verified afterward.";
+    } else if (machinePowerCycled) {
+      resolution = "Resolved the machine initialization/communication issue by power cycling the PC; login and machine communication were verified afterward.";
+    } else {
+      resolution = "Resolved the machine initialization/communication issue by reseating the serial/Molex cable connections and verifying machine communication afterward.";
+    }
+  } else if (explicitResolution) {
+    resolution = recorderResolutionFromActions(explicitResolution, steps);
   } else if (dispenseConflictContext && readdContext) {
     const amount = programDispense || "the program's configured quantity";
     resolution = `Identified a dispensing-limit conflict between the user group and program. Rep was instructed to remove and re-add the item in the user group with a weekly limit of ${programDispense ? `${programDispense} batteries per week` : amount} to match the program, then retest.`;
