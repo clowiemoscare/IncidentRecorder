@@ -261,22 +261,26 @@
 
   <dialog class="modal" id="newIncidentDialog">
     <div class="modal-shell recorder-modal-shell">
-      <div class="modal-header recorder-header">
-        <div>
-          <span class="eyebrow">IncidentRecorder</span>
-          <h2>New Incident · Call-to-ticket helper</h2>
-          <p>Capture a call or paste rough notes, verify detected details, then generate a clean copy-ready ticket.</p>
-          <nav class="recorder-workflow" aria-label="Incident workflow">
-            <a href="#captureNotes"><span>1</span> Capture</a>
-            <a href="#verifyDetails"><span>2</span> Verify</a>
-            <a href="#ticketDescriptions"><span>3</span> Generate</a>
-            <a href="#recorderDrafts"><span>4</span> Save</a>
-          </nav>
+      <div class="modal-header recorder-header recorder-header-compact">
+        <div class="recorder-brand">
+          <span class="recorder-brand-mark"><i data-lucide="shield-check"></i></span>
+          <div><strong>IncidentRecorder</strong></div>
         </div>
+        <nav class="recorder-workflow" aria-label="Incident workflow">
+          <a href="#captureNotes">Capture</a>
+          <a href="#verifyDetails">Verify</a>
+          <a href="#ticketDescriptions">Generate</a>
+          <a href="#recorderDrafts">Save</a>
+        </nav>
         <div class="recorder-header-actions">
           <span class="subtle-pill" id="recorderSaveStatus">Not saved</span>
           <button class="icon-button" type="button" data-close-dialog="newIncidentDialog" aria-label="Close"><i data-lucide="x"></i></button>
         </div>
+      </div>
+
+      <div class="recorder-routing-strip" aria-label="Ticket routing">
+        <label><span><b>*</b> Category</span><select id="newCategory" form="newIncidentForm"></select></label>
+        <label><span><b>*</b> Subcategory</span><select id="newSubcategory" form="newIncidentForm"></select></label>
       </div>
 
       <div class="recorder-workspace">
@@ -304,10 +308,13 @@
                 <textarea id="newRawNotes" class="raw-notes" rows="8" placeholder="Example: rep unable to sync machine. Account #: 887754409. Device ID: MJ0J6D84. Located CP in NetCloud and confirmed offline. Unplugged power cable. Pressed reset. Synced machine. Sync successful."></textarea>
               </label>
 
-              <div class="snippet-card">
-                <strong>Quick troubleshooting snippets</strong>
-                <p>Add common steps to the rough notes, then edit them as needed.</p>
-                <div class="snippet-row" id="snippetRow"></div>
+              <div class="snippet-card resolution-shortcuts-card">
+                <strong>Quick resolution</strong>
+                <p>Pick the outcome that best matches the call, or type your own. This overrides automatic resolution only; Rough Notes stay unchanged.</p>
+                <div class="snippet-row" id="resolutionSnippetRow"></div>
+                <label class="recorder-label resolution-override-label">Resolution outcome
+                  <textarea id="resolutionOverride" rows="2" placeholder="Example: Rep was trained on updating the user's KeepStock Web role and system access. Customer will log out and back in to verify access."></textarea>
+                </label>
               </div>
 
               <div class="deepgram-recorder-note" id="deepgramRecorderNote">
@@ -360,8 +367,6 @@
             <section class="recorder-section">
               <div class="recorder-section-heading"><div><h3>Required ticket info</h3><p>ServiceNow-ready routing and impact fields.</p></div></div>
               <div class="recorder-form-grid required-grid">
-                <label><span><b>*</b> Category</span><select id="newCategory"></select></label>
-                <label><span><b>*</b> Subcategory</span><select id="newSubcategory"></select></label>
                 <label>State<select id="recorderState"><option>New</option><option>In Progress</option><option>On Hold</option><option>Resolved</option><option>Closed</option></select></label>
                 <label><span><b>*</b> Business Impact</span><select id="businessImpact"><option>Minor</option><option>Moderate</option><option>Major</option><option>Critical</option></select></label>
                 <label><span><b>*</b> User Impact</span><select id="userImpact"><option>Single User: 1 user</option><option>Multiple Users: 2-10 users</option><option>Department: 11+ users</option><option>Site-wide</option><option>Enterprise-wide</option></select></label>

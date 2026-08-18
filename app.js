@@ -258,17 +258,13 @@ function formatBytes(bytes) {
 const RECORDER_DRAFT_STORAGE_KEY = "incidentRecorderDraftsV10UxFlow";
 const RECORDER_SETTINGS_KEY = "incidentRecorderSettingsV10";
 const RECORDER_WORK_NOTES_TEMPLATE = `Issue:\n\n\nTroubleshooting Steps:\n\n\nResolution:\n\n\nReason for Escalation: [Only if escalated to T2]`;
-const RECORDER_SNIPPETS = [
-  "Confirmed machine is connected to a cradlepoint",
-  "Located CP in NetCloud",
-  "Confirmed CP is offline",
-  "Unplugged power cable",
-  "Pressed reset",
-  "Confirmed martini glass is solid green",
-  "Synced machine",
-  "Verified account is active",
-  "Cleared app cache",
-  "Had user retry"
+const RECORDER_RESOLUTION_SNIPPETS = [
+  "Provided guide/training on the required KeepStock workflow.",
+  "Rep was trained on updating the user's KeepStock Web role and system access.",
+  "Guided the rep through the required configuration change and verification steps.",
+  "Customer was instructed to log out and back in through Grainger.com > KeepStock to verify access.",
+  "Issue was resolved after the configuration was corrected and verified.",
+  "Issue is not yet confirmed resolved; customer will retest and follow up if needed."
 ];
 const RECORDER_CATEGORY_MAP = {
   "Keepstock - MobileCast": ["Access/login", "Routing", "other"],
@@ -292,7 +288,7 @@ const RECORDER_DETAIL_FIELDS = [
   ["econnectionsStatus", "eConnections Status"], ["sapStatusEbu", "SAP Status/EBU Number"], ["orderReposted", "Does user want order reposted"]
 ];
 const RECORDER_FORM_IDS = [
-  "newRawNotes", "cribProgramId", "programName", "companyName", "siteId", "accountNumber", "softwareVersion", "deviceId", "machineSerial", "cradlepointSerial", "imei", "carrier", "badgeReader", "model", "phoneModel", "phoneSoftwareVersion", "application", "applicationVersion", "timeIssueOccurred", "orderNumber", "econnectionsStatus", "sapStatusEbu", "orderReposted", "newCategory", "newSubcategory", "recorderState", "businessImpact", "userImpact", "urgency", "priority", "assignmentGroup", "newAssignedTo", "service", "serviceOffering", "configurationItem", "channel", "newLocation", "partsRequest", "deviceAsset", "applicationService", "relatedSearch", "knowledgeScope", "watchList", "resolutionCode", "closeNotes", "newTitle", "detailedDescription", "workNotes", "generatedTicket"
+  "newRawNotes", "resolutionOverride", "cribProgramId", "programName", "companyName", "siteId", "accountNumber", "softwareVersion", "deviceId", "machineSerial", "cradlepointSerial", "imei", "carrier", "badgeReader", "model", "phoneModel", "phoneSoftwareVersion", "application", "applicationVersion", "timeIssueOccurred", "orderNumber", "econnectionsStatus", "sapStatusEbu", "orderReposted", "newCategory", "newSubcategory", "recorderState", "businessImpact", "userImpact", "urgency", "priority", "assignmentGroup", "newAssignedTo", "service", "serviceOffering", "configurationItem", "channel", "newLocation", "partsRequest", "deviceAsset", "applicationService", "relatedSearch", "knowledgeScope", "watchList", "resolutionCode", "closeNotes", "newTitle", "detailedDescription", "workNotes", "generatedTicket"
 ];
 
 let recorderRecognition = null;
@@ -548,6 +544,9 @@ function recorderIssueSummary(lines) {
   );
   if (createUser) return "Create a new user in KeepStock Web";
 
+  const accessManagement = /(?:guest user|role to an admin|role.*admin|KeepStock Web admin|vending and inventory management)/i.test(joined) && /(?:user|profile|access)/i.test(joined);
+  if (accessManagement) return "User needed KeepStock Web access and Admin permissions";
+
   const assignment = candidates.find((line) => /not assigned.*(?:program|vending)|(?:program|vending).*not assigned/i.test(line));
   if (assignment) return "Rep was not assigned to the customer's KeepStock programs";
 
@@ -615,7 +614,7 @@ function summarizeRecorderStep(line) {
   if (/teams/.test(lower) && /(?:job|document|message|sent)/.test(lower)) return "Sent the KeepStock password-reset job aid via Teams.";
   if (/clearspider/.test(lower) && /email/.test(lower) && /(?:submit|request|input|enter)/.test(lower)) return "Directed the caller to submit a ClearSpider password-reset request using the customer's email.";
   if (/receive an email|reset (?:his|her|their|the) password|reset password/.test(lower) && /email|link/.test(lower)) return "Advised that the customer will receive a reset email and must complete the reset link and remaining instructions.";
-  if (/step\s*(?:1|one).*step\s*(?:7|seven)|follow step/.test(lower)) return "Advised the customer to follow the password-reset instructions through the final step.";
+  if (/step\s*(?:1|one).*step\s*(?:7|seven)|follow step|follow.*password-reset instructions?.*(?:final|last) step/.test(lower)) return "Advised the customer to follow the password-reset instructions through the final step.";
   if (/right account/.test(lower) && /KeepStock/.test(text)) return "Confirmed the correct Grainger.com account should be selected before opening KeepStock.";
   if (/password reset/.test(lower) && /required|request/.test(lower)) return "Confirmed a KeepStock password reset is required.";
 
@@ -891,13 +890,14 @@ function recorderPreferCanonicalSteps(steps) {
     if (has(/Advised the rep to follow the prompts/i) && /follow.*prompt/i.test(step) && !/Advised the rep/i.test(step)) return false;
     if (has(/Instructed the rep to assign the appropriate programs/i) && /assign.*program/i.test(step) && !/Instructed the rep/i.test(step)) return false;
 
+    if (has(/Confirmed the correct Grainger\.com account should be selected/i) && /right account|correct.*account/i.test(step) && !/Confirmed the correct Grainger\.com account/i.test(step)) return false;
     if (has(/Sent the KeepStock password-reset job aid via Teams/i) && /(?:teams|job aid|message)/i.test(step) && !/Sent the KeepStock password-reset/i.test(step)) return false;
     if (has(/Directed the caller to submit a ClearSpider password-reset request/i) && /(?:clearspider|submit.*request|email address)/i.test(step) && !/Directed the caller to submit/i.test(step)) return false;
     if (has(/Advised that the customer will receive a reset email/i) && /(?:receive.*email|reset.*password|reset link)/i.test(step) && !/Advised that the customer will receive/i.test(step)) return false;
     if (has(/Advised the customer to follow the password-reset instructions/i) && /(?:follow step|page number|step one|step 1)/i.test(step) && !/Advised the customer to follow/i.test(step)) return false;
     if (has(/(?:ClearSpider password-reset request|reset email|password-reset instructions)/i) && /^Reset\s+\w+\.?$/i.test(step)) return false;
 
-    if (has(/Checked the program dispensing setting/i) && /program.*dispens|dispens.*program/i.test(step) && !/Checked the program dispensing setting/i.test(step)) return false;
+    if (has(/Checked the program dispensing setting/i) && /program.*dispens|dispens.*program/i.test(step) && !/Checked the program dispensing setting/i.test(step) && !/^Identified a configuration conflict/i.test(step)) return false;
     if (has(/Identified a configuration conflict:/i) && /(?:conflict|confusion).*(?:user group|program)|user group.*conflict/i.test(step) && !/Identified a configuration conflict:/i.test(step)) return false;
     if (has(/Advised removing the item from the user group, adding it back, and setting the user-group limit/i) && /Advised removing the item from the user group and adding it back/i.test(step) && !/setting the user-group limit/i.test(step)) return false;
     if (has(/Advised removing the item from the user group/i) && /^(?:Removed|Added).*\b(?:item|back)|(?:remove|removed|add|added).*(?:item|user group)/i.test(step) && !/Advised removing the item/i.test(step)) return false;
@@ -929,6 +929,16 @@ function recorderMergeTroubleshootingSteps(raw, contextualSteps, ledgerSteps) {
       [/limited to .* batteries per week/i, /only.*dispense.*batter.*week/i],
       [/weekly dispense allowance resets/i, /after a week.*start over|weekly.*reset/i],
       [/testing the updated user-group configuration/i, /see how that goes|retest|test.*after/i],
+      [/Guest with limited vending-machine access/i, /guest user.*vending|only a guest user/i],
+      [/open KeepStock Web and access the user's profile/i, /KeepStock(?: Stock)? Web.*profile|go to (?:his|her|their) profile/i],
+      [/update the user's role to Admin/i, /update.*role.*admin|updated.*to an admin/i],
+      [/Systems access for Vending and Inventory Management/i, /vending and inventory management|KeepStock Web admin/i],
+      [/locate the user under Users using the company ID/i, /once you go to users|go to users.*company ID|type in the company ID|search(?: up)? by.*first.*last.*name/i],
+      [/edit the user profile/i, /edit button|edit (?:him|her|them|the user)/i],
+      [/Saved the user profile/i, /email address|save it/i],
+      [/user now showed as Admin with KeepStock Web access/i, /looks like.*admin|updated.*admin|given.*access to KeepStock Web/i],
+      [/log out of Grainger\.com, log back in/i, /log out.*log back|Grainger\.com.*KeepStock/i],
+      [/password reset is only needed/i, /if.*still.*(?:unable|asks|prompt)|password reset.*(?:call us back|assistance)/i],
     ];
     for (const [stepPattern, sourcePattern] of conceptPatterns) {
       if (!stepPattern.test(step)) continue;
@@ -1010,6 +1020,7 @@ function recorderSections(raw = value("newRawNotes")) {
   });
   const meaningful = narrative.filter((line) => !isRecorderChatter(line));
   const combined = meaningful.join(" ");
+  const rawCombined = normalizeRecorderTerms(String(raw || "").replace(/\s*\n\s*/g, " "));
   const explicitResolution = [...meaningful].reverse().find((line) => resolutionRe.test(line));
 
   const gen2Context = meaningful.some((line) => /transition(?:ed|ing)?.*gen\s*2|gen\s*2.*transition/i.test(line));
@@ -1018,6 +1029,19 @@ function recorderSections(raw = value("newRawNotes")) {
   const programGuidance = meaningful.some((line) => /grainger\.com.*keepstock.*account information|account information.*select all.*save/i.test(line));
   const keepstockWeb = meaningful.some((line) => /keepstock web/i.test(line));
   const passwordResetContext = meaningful.some((line) => /password reset|reset email|ClearSpider/i.test(line));
+  const passwordResetConditionalContext = /(?:if|unless)[^.]{0,220}(?:still unable|still asks|still prompt|prompts?|unable to access)[^.]{0,220}password reset|password reset[^.]{0,220}(?:if|unless)[^.]{0,160}(?:still unable|still asks|still prompt|prompts?)/i.test(rawCombined);
+  const passwordResetPerformedContext = /ClearSpider|reset email|emailed? reset|submitted?.*reset|password-reset request|reset link|sent.*reset/i.test(rawCombined) && !passwordResetConditionalContext;
+
+  const userAccessManagementContext = /(?:guest user|role to an admin|role.*admin|KeepStock Web admin|vending and inventory management)/i.test(rawCombined) && /(?:user|profile|access)/i.test(rawCombined);
+  const userWasGuest = /guest user[^.]{0,160}(?:vending|access)|only a guest user/i.test(rawCombined);
+  const userProfileStep = /(?:go to|open)[^.]{0,100}(?:KeepStock(?: Stock)? Web|KeepStock Web)[^.]{0,120}(?:profile|user profile)|go to (?:his|her|their) profile/i.test(rawCombined);
+  const userSearchStep = /(?:go to|once you go to)[^.]{0,100}users|type in the company id|search(?: up)? by (?:his|her|their)[^.]{0,80}first[^.]{0,80}last[^.]{0,80}name/i.test(rawCombined);
+  const userEditStep = /edit button|edit (?:him|her|them|the user|user profile)/i.test(rawCombined);
+  const userRoleAdminStep = /(?:update|change|set)[^.]{0,100}(?:role|user)[^.]{0,100}admin|updated[^.]{0,100}to an admin/i.test(rawCombined);
+  const userSystemsStep = /vending and inventory management/i.test(rawCombined) || /vending machines?[^.]{0,160}KeepStock Web admin/i.test(rawCombined);
+  const userSaveStep = /(?:input|enter)[^.]{0,120}email address[^.]{0,160}save|save it/i.test(rawCombined);
+  const userAdminVerified = /looks like (?:he|she|they)(?:'s| is) an admin|updated (?:him|her|them)[^.]{0,100}admin|given (?:him|her|them)[^.]{0,140}access to KeepStock Web/i.test(rawCombined);
+  const userRelogStep = /log out[^.]{0,180}log back[^.]{0,180}Grainger\.com[^.]{0,180}KeepStock|log out[^.]{0,180}log back[^.]{0,180}KeepStock/i.test(rawCombined);
 
   // Machine / auxiliary-locker calls are commonly captured from the agent side only.
   // Treat the agent's checks, reseats, reboots and verification statements as the
@@ -1077,6 +1101,19 @@ function recorderSections(raw = value("newRawNotes")) {
   if (createUserContext && createUserPromptStep) contextualSteps.push("Advised the rep to follow the prompts to complete the new-user setup.");
   if (createUserContext && createUserAssignStep) contextualSteps.push("Instructed the rep to assign the appropriate programs to the new user.");
 
+  if (userAccessManagementContext) {
+    if (userWasGuest) contextualSteps.push("Confirmed the user was a Guest with limited vending-machine access.");
+    if (userProfileStep) contextualSteps.push("Guided the rep to open KeepStock Web and access the user's profile.");
+    if (userRoleAdminStep) contextualSteps.push("Instructed the rep to update the user's role to Admin.");
+    if (userSystemsStep) contextualSteps.push("Configured Systems access for Vending and Inventory Management and KeepStock Web Admin.");
+    if (userSearchStep) contextualSteps.push("Instructed the rep to locate the user under Users using the company ID and first/last name.");
+    if (userEditStep) contextualSteps.push("Guided the rep to edit the user profile.");
+    if (userSaveStep) contextualSteps.push("Saved the user profile after entering the required email address.");
+    if (userAdminVerified) contextualSteps.push("Verified the user now showed as Admin with KeepStock Web access.");
+    if (userRelogStep) contextualSteps.push("Instructed the customer to log out of Grainger.com, log back in, open KeepStock, and verify KeepStock Web access.");
+    if (passwordResetConditionalContext) contextualSteps.push("Explained that a password reset is only needed if the customer is still prompted for a KeepStock user ID/password; support can assist with the reset.");
+  }
+
   if (dispenseConflictContext) {
     const crib = value("cribProgramId");
     const program = value("programName");
@@ -1089,7 +1126,7 @@ function recorderSections(raw = value("newRawNotes")) {
     if (itemCode) contextualSteps.push(`Reviewed item ${itemCode}.`);
     if (programDispense) contextualSteps.push(`Checked the program dispensing setting and confirmed it is set to dispense ${programDispense} each.`);
     if (groupLimit && programDispense) contextualSteps.push(`Identified a configuration conflict: the user group was set to ${groupLimit} battery per week while the program was set to ${programDispense}.`);
-    else contextualSteps.push("Identified a configuration conflict between the user-group dispensing limit and the program dispensing setting.");
+    else contextualSteps.push("Identified a configuration conflict: the user-group dispensing limit did not match the program dispensing setting.");
     if (readdContext) contextualSteps.push(`Advised removing the item from the user group, adding it back, and setting the user-group limit to ${programDispense ? `${programDispense} batteries per week` : "match the program's configured quantity"}.`);
     if (weeklyLimitContext && programDispense) contextualSteps.push(`Confirmed the user should be limited to ${programDispense} batteries per week.`);
     if (weeklyResetContext) contextualSteps.push("Explained that the weekly dispense allowance resets after one week.");
@@ -1100,7 +1137,10 @@ function recorderSections(raw = value("newRawNotes")) {
   const steps = recorderMergeTroubleshootingSteps(raw, contextualSteps, ledgerSteps);
 
   let resolution = "";
-  if (machineCommunicationContext && machineVerifiedResolved && (machinePowerCycled || machineCableChecked)) {
+  const manualResolution = value("resolutionOverride").trim();
+  if (manualResolution) {
+    resolution = manualResolution;
+  } else if (machineCommunicationContext && machineVerifiedResolved && (machinePowerCycled || machineCableChecked)) {
     if (machinePowerCycled && machineCableChecked) {
       resolution = "Resolved the machine initialization/communication issue by reseating the serial/Molex cable connections and power cycling the PC; login and machine communication were verified afterward.";
     } else if (machinePowerCycled) {
@@ -1108,6 +1148,10 @@ function recorderSections(raw = value("newRawNotes")) {
     } else {
       resolution = "Resolved the machine initialization/communication issue by reseating the serial/Molex cable connections and verifying machine communication afterward.";
     }
+  } else if (userAccessManagementContext && userAdminVerified) {
+    resolution = `Updated the user's role to Admin and granted Vending and Inventory Management plus KeepStock Web Admin access. ${userRelogStep ? "Customer was instructed to log out and back in through Grainger.com > KeepStock to verify access." : ""}${passwordResetConditionalContext ? " Password reset is only required if the KeepStock credential prompt remains." : ""}`.replace(/\s+/g, " ").trim();
+  } else if (userAccessManagementContext) {
+    resolution = `Rep was trained on updating the user's KeepStock Web role and required system access.${userRelogStep ? " Customer was instructed to log out and back in to verify access." : ""}${passwordResetConditionalContext ? " Password reset is only required if the KeepStock credential prompt remains." : ""}`.replace(/\s+/g, " ").trim();
   } else if (explicitResolution) {
     resolution = recorderResolutionFromActions(explicitResolution, steps);
   } else if (dispenseConflictContext && readdContext) {
@@ -1119,7 +1163,7 @@ function recorderSections(raw = value("newRawNotes")) {
     resolution = "Rep was trained on creating a new user in KeepStock Web and assigning programs to the user's profile.";
   } else if (createUserContext) {
     resolution = "Rep was trained on creating a new user in KeepStock Web.";
-  } else if (passwordResetContext) {
+  } else if (passwordResetPerformedContext) {
     resolution = "Customer to complete the KeepStock password reset using the emailed reset link.";
   } else if (gen2Context && (programUnassigned || programGuidance || keepstockWeb)) {
     resolution = "Confirmed the account does not appear to have transitioned to Gen 2. Rep was trained on KeepStock Web program management.";
@@ -1314,7 +1358,14 @@ function resetRecorder(){
 }
 
 function appendRecorderNote(text){ const current=value("newRawNotes"); $("newRawNotes").value=current?`${current}\n${text}`:text; setRecorderSaveStatus("Unsaved changes"); }
-function renderRecorderSnippets(){ const el=$("snippetRow"); if(el)el.innerHTML=RECORDER_SNIPPETS.map((s)=>`<button type="button" data-recorder-snippet="${escapeHtml(s)}">+ ${escapeHtml(s)}</button>`).join(""); }
+function appendRecorderResolution(text){
+  const el=$("resolutionOverride");
+  if(!el)return;
+  const current=String(el.value||"").trim();
+  el.value=current ? `${current} ${text}` : text;
+  setRecorderSaveStatus("Unsaved changes");
+}
+function renderRecorderSnippets(){ const el=$("resolutionSnippetRow"); if(el)el.innerHTML=RECORDER_RESOLUTION_SNIPPETS.map((s)=>`<button type="button" data-resolution-snippet="${escapeHtml(s)}">+ ${escapeHtml(s)}</button>`).join(""); }
 function isLocalFilePage(){ return window.location.protocol==="file:"; }
 
 function deepgramRecorder() { return window.IncidentRecorderDeepgram || null; }
@@ -1630,7 +1681,7 @@ function wireEvents() {
   $("pauseVoiceBtn").addEventListener("click",pauseRecorderVoiceNotes);
   $("stopVoiceBtn").addEventListener("click",stopRecorderVoiceNotes);
 
-  $("snippetRow").addEventListener("click",(event)=>{ const btn=event.target.closest("[data-recorder-snippet]"); if(!btn)return; appendRecorderNote(btn.dataset.recorderSnippet); showToast("Snippet added to rough notes."); });
+  $("resolutionSnippetRow").addEventListener("click",(event)=>{ const btn=event.target.closest("[data-resolution-snippet]"); if(!btn)return; appendRecorderResolution(btn.dataset.resolutionSnippet); showToast("Resolution outcome added."); });
   $("recorderDraftList").addEventListener("click",(event)=>{ const btn=event.target.closest("[data-recorder-draft-action]"); if(!btn)return; handleRecorderDraftAction(btn.dataset.recorderDraftAction,btn.dataset.id); });
   $("deleteRecorderDraftsBtn").addEventListener("click",deleteRecorderDrafts);
 
