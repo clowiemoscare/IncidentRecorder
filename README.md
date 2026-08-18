@@ -1,37 +1,57 @@
-# IncidentRecorder - Local AI build
+# IncidentRecorder - Deepgram build
 
-This build keeps the existing static HTML/CSS/JavaScript IncidentRecorder and adds an optional **free local AI ticket generator** using WebLLM.
+This build keeps the existing static IncidentRecorder ticket workflow and replaces
+the primary voice transcription path with **Deepgram Nova-3**. The existing browser
+speech recognizer remains available as a fallback when Deepgram is not configured.
 
-## Files to upload to GitHub
-
-Upload these files to the root of the repository:
+## Files to upload to the GitHub repository root
 
 - `index.html`
 - `styles.css`
 - `app.js`
-- `ai.js`
+- `deepgram.js`
 - `README.md`
 
-## Local AI behavior
+You may also keep the `deepgram-worker` folder in the repository for deployment
+instructions. It contains no API key.
 
-- Local AI is optional and is enabled from the New Incident screen.
-- The selected WebLLM model runs inside the browser with WebGPU.
-- No OpenAI/Deepgram/API key is required.
-- Rough call notes are processed locally by the model after it is downloaded.
-- The first AI use downloads the selected model and the browser caches the model files.
-- **Fast model:** Llama 3.2 1B.
-- **More accurate model:** Llama 3.2 3B.
-- If WebGPU/model loading/AI generation fails, the existing rule-based generator is used automatically.
+## Important: never put the Deepgram API key in GitHub
 
-The AI is instructed that the microphone contains **only Chloe's side of the support call**. It should document every meaningful check, finding, instruction, diagnosis, training step, and retest instruction in chronological order while removing greetings and filler.
+A public GitHub Pages site cannot safely contain a permanent API key. This project
+therefore includes a small Cloudflare Worker in `deepgram-worker/`.
+
+The Worker stores the permanent key as a Cloudflare secret and returns a temporary
+Deepgram access token to the browser. See `deepgram-worker/README.md` for setup.
+
+After the Worker is deployed:
+
+1. Open IncidentRecorder.
+2. Go to **Settings > Deepgram Voice Transcription**.
+3. Paste the Worker URL ending in `/token`.
+4. Click **Save Endpoint**.
+5. Click **Test Connection**.
+6. Open New Incident and click **Start voice notes**.
+
+## Voice behavior
+
+- Deepgram Nova-3 is the primary transcription provider when the token endpoint is configured.
+- Domain keyterms are sent for KeepStock/Grainger terminology.
+- Interim text is shown while you speak; final text is appended to Rough Notes.
+- Rough Notes are never rewritten by the voice layer.
+- The Deepgram connection automatically reconnects until **Stop** is clicked.
+- A fresh temporary token is requested for a reconnect.
+- The microphone is released on Pause/Stop.
+- If Deepgram is not configured, the existing browser SpeechRecognition fallback is used.
 
 ## Ticket rules retained
 
-- Manual fields are never overwritten by AI suggestions.
-- Unknown fields remain blank.
-- Leading zeros in exact IDs/account numbers are preserved when possible.
-- The selected Subcategory remains the Issue value in Work Notes.
-- `Keepstock - Onsite` and `Keepstock Canada - Onsite` Detailed Description contains only:
+- Ticket generation still uses the refined IncidentRecorder rules; Deepgram improves the transcript, not the business-rule template.
+- Unknown values stay blank.
+- Manually entered details are preserved.
+- Leading zeros in account numbers/IDs are preserved when entered or recognized.
+- Issue remains the selected Subcategory.
+- Rough Notes remain intact after generating a ticket.
+- For `Keepstock - Onsite` and `Keepstock Canada - Onsite`, Detailed Description contains only:
 
 ```text
 Crib/Program id:
@@ -41,11 +61,13 @@ Site ID (If Applicable):
 Acct #:
 ```
 
-- Rough Notes remain intact when generating a ticket.
-- Voice recognition continues/reconnects until Stop is clicked, except for fatal browser microphone permission/device errors.
+## Privacy
+
+While voice notes are active, microphone audio is sent to Deepgram for transcription.
+Rough Notes, generated tickets, drafts, and saved incidents remain in browser storage
+unless you explicitly export or copy them.
 
 ## Hosting
 
-Use GitHub Pages or another HTTPS host. Voice microphone access and WebGPU/browser model loading are not reliable from a `file://` URL.
-
-Recommended browser: current Chrome or Edge with WebGPU enabled.
+Use GitHub Pages or another HTTPS host. Microphone access is not reliable from a
+`file://` URL. Current Chrome or Edge is recommended.

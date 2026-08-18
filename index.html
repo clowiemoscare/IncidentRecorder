@@ -201,6 +201,18 @@
           </article>
 
           <article class="card settings-card">
+            <h2><i data-lucide="waves"></i> Deepgram Voice Transcription</h2>
+            <p class="settings-help">The browser never receives your permanent Deepgram API key. Enter the URL of the secure token Worker included with this project.</p>
+            <label>Secure token endpoint<input id="deepgramTokenEndpoint" type="url" placeholder="https://incident-recorder-deepgram.your-subdomain.workers.dev/token" autocomplete="off" /></label>
+            <div class="settings-actions">
+              <button class="button primary" id="saveDeepgramBtn" type="button">Save Endpoint</button>
+              <button class="button" id="testDeepgramBtn" type="button">Test Connection</button>
+            </div>
+            <div class="connection-status" id="deepgramSettingsStatus" aria-live="polite">Not configured</div>
+            <small>Your call audio is sent to Deepgram only while voice notes are running. Ticket fields and drafts remain stored in your browser.</small>
+          </article>
+
+          <article class="card settings-card">
             <h2><i data-lucide="bell"></i> Notification Preferences</h2>
             <div class="switch-row"><div><strong>Email Notifications</strong><span>Receive incident alerts via email</span></div><label class="switch"><input type="checkbox" checked /><span></span></label></div>
             <div class="switch-row"><div><strong>High Priority Alerts</strong><span>Instant alerts for high severity incidents</span></div><label class="switch"><input type="checkbox" checked /><span></span></label></div>
@@ -277,7 +289,7 @@
               </div>
 
               <div class="voice-card" aria-label="Voice note controls">
-                <div class="voice-status"><span class="voice-dot" id="voiceDot"></span><span id="voiceStatus">Voice notes are off. Click Start voice notes. Once started, they stay active and reconnect automatically until you click Stop.</span></div>
+                <div class="voice-status"><span class="voice-dot" id="voiceDot"></span><span id="voiceStatus">Voice notes are off. Click Start voice notes. Deepgram reconnects automatically until you click Stop.</span></div>
                 <div class="voice-tools">
                   <button class="button primary" id="startVoiceBtn" type="button"><i data-lucide="mic"></i> Start voice notes</button>
                   <button class="button" id="pauseVoiceBtn" type="button"><i data-lucide="pause"></i> Pause</button>
@@ -298,26 +310,9 @@
                 <div class="snippet-row" id="snippetRow"></div>
               </div>
 
-              <div class="local-ai-card" id="localAiCard">
-                <div class="local-ai-heading">
-                  <div>
-                    <strong><i data-lucide="brain-circuit"></i> Free local AI</strong>
-                    <p>Runs in this browser with WebGPU. Your call notes are processed locally; only the AI model files are downloaded.</p>
-                  </div>
-                  <label class="local-ai-toggle"><input id="useLocalAi" type="checkbox" checked /> Use local AI</label>
-                </div>
-                <div class="local-ai-controls">
-                  <label>Model
-                    <select id="localAiModel">
-                      <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC" selected>Fast · Llama 3.2 1B</option>
-                      <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC">More accurate · Llama 3.2 3B</option>
-                    </select>
-                  </label>
-                  <button class="button" id="loadLocalAiBtn" type="button"><i data-lucide="download"></i> Load local AI</button>
-                  <span class="local-ai-status" id="localAiStatus" aria-live="polite">Not loaded yet</span>
-                </div>
-                <div class="local-ai-progress" id="localAiProgress" hidden><span id="localAiProgressBar"></span></div>
-                <small id="localAiHint">The first use downloads the selected model and caches it in the browser. If WebGPU is unavailable, Generate clean ticket automatically uses the existing rule-based generator.</small>
+              <div class="deepgram-recorder-note" id="deepgramRecorderNote">
+                <div><strong><i data-lucide="waves"></i> Deepgram Nova-3 transcription</strong><p id="deepgramRecorderHint">Configure the secure token endpoint in Settings. If it is not configured, the browser speech recognizer remains available as a fallback.</p></div>
+                <span class="provider-badge" id="voiceProviderBadge">Browser fallback</span>
               </div>
 
               <div class="button-row recorder-action-row">
@@ -439,14 +434,14 @@
             <p>Write short lines while you are on the call. The app turns them into Detailed Description and Work Notes.</p>
             <ul><li>rep unable to sync machine</li><li>Account #: 887754409</li><li>Device ID: MJ0J6D84</li><li>located CP in NetCloud and confirmed offline</li><li>sync successful</li></ul>
           </div>
-          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>Voice transcription, drafts, and incident records stay in the browser. The static app does not upload call notes to a server.</span></div>
+          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>Voice audio is sent to Deepgram for live transcription while recording. Rough notes, generated tickets, drafts, and incident records remain stored in your browser.</span></div>
         </aside>
       </div>
     </div>
   </dialog>
 
   <script async src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" onload="window.lucide && window.lucide.createIcons({ attrs: { 'stroke-width': 1.8 } })"></script>
+  <script src="deepgram.js"></script>
   <script src="app.js"></script>
-  <script type="module" src="ai.js"></script>
 </body>
 </html>
