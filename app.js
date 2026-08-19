@@ -1885,6 +1885,7 @@ function wireEvents() {
   $("copyWorkBtn").addEventListener("click",()=>copyText($("workNotes").value,"Work notes copied."));
   $("copyGeneratedBtn").addEventListener("click",()=>copyText($("generatedTicket").value,"Generated ticket copied."));
   $("copyWorkFromOutputBtn").addEventListener("click",()=>copyText($("workNotes").value,"Work notes copied."));
+  $("copyShortFromOutputBtn").addEventListener("click",()=>copyText($("newTitle").value,"Short description copied."));
   $("copyDetailedFromOutputBtn").addEventListener("click",()=>copyText($("detailedDescription").value,"Detailed description copied."));
   $("downloadGeneratedBtn").addEventListener("click",()=>downloadText($("generatedTicket").value,`${(value("newTitle","incident").replace(/[^a-z0-9]+/gi,"-").toLowerCase())}-ticket.txt`));
 
