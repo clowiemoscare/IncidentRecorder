@@ -1324,6 +1324,41 @@ function workersAiEndpoint() {
     return url.toString();
   }catch(error){return "";}
 }
+
+function recorderCompletedRequestResolution(analysis, fallbackSections, documentedSteps = []) {
+  const notes=value("newRawNotes");
+  const combined=[
+    value("newCategory"), value("newSubcategory"),
+    analysis?.issue_summary, fallbackSections?.issueSummary,
+    notes, ...documentedSteps
+  ].filter(Boolean).join(" ");
+
+  const partsContext=/\b(?:parts? assistance|parts? request|mrf|tray harness|part number|replacement part)\b/i.test(combined);
+  if(!partsContext)return "";
+
+  const linkCompleted=/\b(?:sent|shared|provided|emailed|messaged)\b[^.\n]{0,100}\b(?:link|form|request)\b/i.test(combined)
+    || /\b(?:link|form)\b[^.\n]{0,100}\b(?:sent|shared|provided)\b/i.test(combined);
+
+  const partMatch=notes.match(/\bpart\s*(?:number|#|no\.?)[\s:,-]*(?:for\s+(?:the\s+)?)?([A-Za-z][A-Za-z0-9 /_-]{1,60}?)\s+(?:is|was)\s+([A-Z0-9-]{3,})\b/i);
+  let partName=partMatch?String(partMatch[1]||"").trim().replace(/\s+/g," "):"";
+  let partNumber=partMatch?String(partMatch[2]||"").trim():"";
+  if(!partNumber){
+    const stepWithPart=documentedSteps.find((step)=>/\bpart\s*(?:number|#|no\.?)\b/i.test(step));
+    const numberMatch=String(stepWithPart||"").match(/\b([A-Z]{1,6}[A-Z0-9-]*\d[A-Z0-9-]*)\b/i);
+    if(numberMatch)partNumber=numberMatch[1];
+  }
+  if(!linkCompleted&&!partNumber)return "";
+
+  const viaTeams=/\bteams\b/i.test(combined);
+  const pieces=[];
+  if(linkCompleted)pieces.push(`Provided the parts-request link${viaTeams?" via Teams":""}`);
+  if(partNumber){
+    partName=partName.replace(/^(?:a|an|the)\s+/i,"").trim();
+    pieces.push(`supplied ${partName?`${partName} `:""}part number ${partNumber}`);
+  }
+  return sentence(pieces.join(" and "));
+}
+
 function normalizeWorkersAiAnalysis(analysis, fallbackSections) {
   const cleanStep=(text)=>sentence(normalizeRecorderTerms(String(text||"").replace(/^[-*\s]+/,"").trim()));
   const steps=Array.isArray(analysis?.troubleshooting_steps)
@@ -1339,14 +1374,19 @@ function normalizeWorkersAiAnalysis(analysis, fallbackSections) {
   });
   const aiAccount=String(analysis?.account_number||"").replace(/\D/g, "");
   if (!value("accountNumber") && /^\d{4,}$/.test(aiAccount)) $("accountNumber").value=aiAccount;
+  const aiResolution=sentence(normalizeRecorderTerms(String(analysis?.resolution||"").trim()));
+  const completedRequestResolution=!aiResolution
+    ? recorderCompletedRequestResolution(analysis,fallbackSections,documented)
+    : "";
+  const finalResolution=aiResolution||completedRequestResolution||sentence(normalizeRecorderTerms(String(fallbackSections?.resolution||"").trim()));
   return {
     ...fallbackSections,
     issue:normalizeRecorderTerms(String(analysis?.issue_summary||fallbackSections.issue||"").trim()),
     issueSummary:normalizeRecorderTerms(String(analysis?.issue_summary||fallbackSections.issueSummary||"").trim()),
     steps:documented.length?documented:fallbackSections.steps,
-    resolution:sentence(normalizeRecorderTerms(String(analysis?.resolution||"").trim())),
+    resolution:finalResolution,
     aiGenerated:true,
-    aiResolved:Boolean(analysis?.resolved)
+    aiResolved:Boolean(analysis?.resolved||completedRequestResolution)
   };
 }
 async function analyzeRecorderWithWorkersAi() {

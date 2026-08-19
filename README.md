@@ -94,3 +94,9 @@ Use GitHub Pages or another HTTPS host. Current Chrome or Edge is recommended fo
 - Keepstock - CM - PC/Data + Existing/New badge reader adds Badge Reader / Model.
 - All other routing uses the full standard template.
 - Reset template restores the exact original reset-template spacing and field set.
+
+### Resolution fulfillment behavior
+Generate Ticket treats fulfilled support requests as completed outcomes even when the transcript does not literally say "resolved". A completed parts-information call can therefore resolve to the link/part number actually provided rather than leaving Resolution blank.
+
+### Resolution fulfillment behavior
+Generate Ticket treats fulfilled support requests as completed outcomes even when the transcript does not literally say "resolved". A completed parts-information call can therefore resolve to the link/part number actually provided rather than leaving Resolution blank.
