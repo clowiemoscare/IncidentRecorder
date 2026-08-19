@@ -1,5 +1,5 @@
 const APP_STORAGE_KEY = "incidentRecorderDashboardV1";
-const LEGACY_DRAFT_KEYS = ["incidentRecorderDraftsV10UxFlow", "incidentRecorderDraftsV1"];
+const LEGACY_DRAFT_KEYS = ["incidentRecorderDraftsV11TemplateRouting", "incidentRecorderDraftsV1"];
 
 const seedIncidents = [
   { id: "INC-001", title: "Unauthorized Access Attempt", severity: "high", date: "2025-10-07", status: "investigating", assignedTo: "John Doe", category: "Suspicious Activity", location: "Main Entrance", notes: "Unauthorized access attempt detected at the main entrance. Security review is in progress." },
@@ -255,26 +255,62 @@ function formatBytes(bytes) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`;
 }
 
-const RECORDER_DRAFT_STORAGE_KEY = "incidentRecorderDraftsV10UxFlow";
-const RECORDER_SETTINGS_KEY = "incidentRecorderSettingsV10";
-const RECORDER_WORK_NOTES_TEMPLATE = `Issue:\n\n\nTroubleshooting Steps:\n\n\nResolution:\n\n\nReason for Escalation: [Only if escalated to T2]`;
-const RECORDER_RESOLUTION_SNIPPETS = [
-  "Provided guide/training on the required KeepStock workflow.",
-  "Rep was trained on updating the user's KeepStock Web role and system access.",
-  "Guided the rep through the required configuration change and verification steps.",
-  "Customer was instructed to log out and back in through Grainger.com > KeepStock to verify access.",
-  "Issue was resolved after the configuration was corrected and verified.",
-  "Issue is not yet confirmed resolved; customer will retest and follow up if needed."
-];
+const RECORDER_DRAFT_STORAGE_KEY = "incidentRecorderDraftsV11TemplateRouting";
+const RECORDER_SETTINGS_KEY = "incidentRecorderSettingsV11";
+const RECORDER_WORK_NOTES_TEMPLATE = `Issue:
+
+
+Troubleshooting Steps:
+
+
+Resolution:
+
+
+Reason for Escalation: [Only if escalated to T2]`;
+const RECORDER_TEMPLATE_DIVIDER = "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";
+// Reset template intentionally matches the user's original spacing and field set.
+const RECORDER_RESET_DETAIL_TEMPLATE = `Template Header (DO NOT REMOVE)
+**Delete any unused sections below**
+${RECORDER_TEMPLATE_DIVIDER}
+Slack Thread URL:
+
+
+Parent/PRB Template: [Update/add to section below with all required data from Parents/PRB's]
+
+
+Crib/Program id: 
+Program name: 
+Company name: 
+Site ID (If Applicable): 
+Acct #:
+
+
+
+Software Version:
+Device ID (Affected): 
+Machine Serial Number(s):
+
+
+
+Badge Reader:
+Model:
+
+Phone Model:
+Phone Software Version:
+Application:
+Application Version:
+Time issue occurred:
+
+
+Order #:
+eConnections Status:
+SAP Status/EBU Number:
+Does user want order reposted:`;
 const RECORDER_CATEGORY_MAP = {
   "Keepstock - MobileCast": ["Access/login", "Routing", "other"],
   "Keepstock - GCOM Mobile App": ["access/login", "Barcode label", "Bluetooth Scanner", "Camera Scanner", "Cart", "Ks Items", "other"],
   "Keepstock Canada - Onsite": ["Access/Login", "CS Software", "Email notification", "Item Data", "Item maintenance", "MRF Issue", "MRF required", "order approval", "program maintenance", "other"],
-  "Keepstock - CM - AMS toolbox": ["Hardware issue: - Drop sensor", "Hardware issue: - lightning", "Hardware issue: - transformer", "Hardware issue: - Fuses", "Hardware issue: - Internal Keypad", "Hardware issue: - Main board", "Hardware issue: - Main harness", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Tray", "Hardware issue: - Tray harness", "Hardware issue: - Machine Replacement Request", "physical damage", "Product sizing", "other"],
-  "Keepstock - CM - Locker": ["Hardware issue: - Main board", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Machine Replacement Request", "physical damage", "other"],
-  "Keepstock - CM - Carousel": ["Hardware issue: - Main board", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Machine Replacement Request", "physical damage", "other"],
-  "Keepstock - Seaga - Coil": ["Hardware issue: - Main board", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Machine Replacement Request", "physical damage", "other"],
-  "Keepstock - Seaga - Locker": ["Hardware issue: - Main board", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Machine Replacement Request", "physical damage", "other"],
+  "Keepstock - Seaga / CM": ["Hardware issue: - Drop sensor", "Hardware issue: - lightning", "Hardware issue: - transformer", "Hardware issue: - Fuses", "Hardware issue: - Internal Keypad", "Hardware issue: - Main board", "Hardware issue: - Main harness", "Hardware issue: - Motors", "Hardware issue: - Power supply", "Hardware issue: - Tray", "Hardware issue: - Tray harness", "Hardware issue: - Machine Replacement Request", "physical damage", "Product sizing", "other"],
   "Keepstock - CM - PC/Data": ["Data issue ATR setting", "craftcodes/uda", "item data", "data issue-user/login", "hardware issue - ComPorts", "hardware issue - Existing badge reader", "hardware issue - New badge reader", "hardware issue - Touchscreen", "Network issue - Cellular", "Network issue - Customer network", "reporting-PO issue", "Software issue", "other"],
   "Keepstock - Seaga - PC/Data": ["Data issue ATR setting", "craftcodes/uda", "item data", "data issue-user/login", "hardware issue - ComPorts", "hardware issue - Existing badge reader", "hardware issue - New badge reader", "hardware issue - Touchscreen", "Network issue - Cellular", "Network issue - Customer network", "reporting-PO issue", "Software issue", "other"],
   "Keepstock - Onsite": ["Email notification", "Drop call-immediately", "KS console", "KS console - access/login", "KS console - Report manager", "KS Web - User groups/Product groups", "KS Web - Access/login", "KS Web - item management", "KS Web - Labels", "KS Web - Reporting", "KS Web - Order Status Viewer", "KS Web - User management", "consignment issue", "CMI scanner", "MRF Issue", "MRF required", "New customer request", "Approver update", "Order issue - CS", "Order issue - Epro", "Order issue - GCOM", "Parts Assistance", "other"]
@@ -288,7 +324,7 @@ const RECORDER_DETAIL_FIELDS = [
   ["econnectionsStatus", "eConnections Status"], ["sapStatusEbu", "SAP Status/EBU Number"], ["orderReposted", "Does user want order reposted"]
 ];
 const RECORDER_FORM_IDS = [
-  "newRawNotes", "resolutionOverride", "cribProgramId", "programName", "companyName", "siteId", "accountNumber", "softwareVersion", "deviceId", "machineSerial", "cradlepointSerial", "imei", "carrier", "badgeReader", "model", "phoneModel", "phoneSoftwareVersion", "application", "applicationVersion", "timeIssueOccurred", "orderNumber", "econnectionsStatus", "sapStatusEbu", "orderReposted", "newCategory", "newSubcategory", "recorderState", "businessImpact", "userImpact", "urgency", "priority", "assignmentGroup", "newAssignedTo", "service", "serviceOffering", "configurationItem", "channel", "newLocation", "partsRequest", "deviceAsset", "applicationService", "relatedSearch", "knowledgeScope", "watchList", "resolutionCode", "closeNotes", "newTitle", "detailedDescription", "workNotes", "generatedTicket"
+  "newRawNotes", "cribProgramId", "programName", "companyName", "siteId", "accountNumber", "softwareVersion", "deviceId", "machineSerial", "cradlepointSerial", "imei", "carrier", "badgeReader", "model", "phoneModel", "phoneSoftwareVersion", "application", "applicationVersion", "timeIssueOccurred", "orderNumber", "econnectionsStatus", "sapStatusEbu", "orderReposted", "newCategory", "newSubcategory", "channel", "newLocation", "partsRequest", "deviceAsset", "applicationService", "relatedSearch", "knowledgeScope", "watchList", "resolutionCode", "closeNotes", "newTitle", "detailedDescription", "workNotes", "generatedTicket"
 ];
 
 let recorderRecognition = null;
@@ -306,7 +342,6 @@ function openNewIncident() {
   $("newIncidentForm").reset();
   $("generatedTicket").value = "";
   applyRecorderDefaults();
-  renderRecorderSnippets();
   renderRecorderDrafts();
   setupRecorderVoiceNotes();
   setRecorderSaveStatus("Not saved");
@@ -384,8 +419,15 @@ function populateRecorderCategories(preferred) {
   const select = $("newCategory");
   const settings = getRecorderSettings();
   const categories = Object.keys(RECORDER_CATEGORY_MAP);
+  const legacyMachineCategories = new Set([
+    "Keepstock - CM - AMS toolbox", "Keepstock - CM - Locker", "Keepstock - CM - Carousel",
+    "Keepstock - Seaga - Coil", "Keepstock - Seaga - Locker"
+  ]);
+  const migrate = (category) => legacyMachineCategories.has(category) ? "Keepstock - Seaga / CM" : category;
+  const requested = migrate(preferred);
+  const remembered = migrate(settings.category);
   select.innerHTML = categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("");
-  select.value = categories.includes(preferred) ? preferred : categories.includes(settings.category) ? settings.category : "Keepstock - Seaga - PC/Data";
+  select.value = categories.includes(requested) ? requested : categories.includes(remembered) ? remembered : "Keepstock - Seaga - PC/Data";
   populateRecorderSubcategories(settings.subcategory);
 }
 
@@ -400,36 +442,18 @@ function getRecorderSettings() {
   try { return JSON.parse(localStorage.getItem(RECORDER_SETTINGS_KEY)) || {}; } catch (e) { return {}; }
 }
 function saveRecorderSettings() {
-  localStorage.setItem(RECORDER_SETTINGS_KEY, JSON.stringify({ category:value("newCategory"), subcategory:value("newSubcategory"), assignmentGroup:value("assignmentGroup"), assignedTo:value("newAssignedTo") }));
+  localStorage.setItem(RECORDER_SETTINGS_KEY, JSON.stringify({ category:value("newCategory"), subcategory:value("newSubcategory") }));
 }
 
 function applyRecorderDefaults() {
   const settings = getRecorderSettings();
   populateRecorderCategories(settings.category);
-  $("recorderState").value = "New";
-  $("businessImpact").value = "Minor";
-  $("userImpact").value = "Single User: 1 user";
-  $("urgency").value = "Low";
-  $("assignmentGroup").value = settings.assignmentGroup || "T1 KeepStock";
-  $("newAssignedTo").value = settings.assignedTo || appState.settings?.name || "Clowie Moscare";
-  $("channel").value = "Phone";
-  $("knowledgeScope").value = "Knowledge & Catalog (All)";
-  updateRecorderPriority();
-  $("detailedDescription").value = buildRecorderDetailedDescription({ issue:"", steps:[], resolution:"" });
+  if ($("channel")) $("channel").value = "Phone";
+  if ($("knowledgeScope")) $("knowledgeScope").value = "Knowledge & Catalog (All)";
+  $("detailedDescription").value = buildRecorderDetailedDescription();
   $("workNotes").value = RECORDER_WORK_NOTES_TEMPLATE;
   renderRecorderDetectedSummary();
   updateRecorderCounters();
-}
-
-function updateRecorderPriority() {
-  const business = value("businessImpact", "Minor");
-  const user = value("userImpact", "Single User: 1 user");
-  const urgency = value("urgency", "Low");
-  let score = 4;
-  if (business === "Critical" || urgency === "Critical" || user === "Enterprise-wide") score = 1;
-  else if (business === "Major" || urgency === "High" || user === "Site-wide") score = 2;
-  else if (business === "Moderate" || urgency === "Medium" || user.includes("Department")) score = 3;
-  $("priority").value = `${score} - ${["Critical","High","Moderate","Low"][score-1]}`;
 }
 
 function extractRecorderDetails(overwrite = false) {
@@ -1137,10 +1161,7 @@ function recorderSections(raw = value("newRawNotes")) {
   const steps = recorderMergeTroubleshootingSteps(raw, contextualSteps, ledgerSteps);
 
   let resolution = "";
-  const manualResolution = value("resolutionOverride").trim();
-  if (manualResolution) {
-    resolution = manualResolution;
-  } else if (machineCommunicationContext && machineVerifiedResolved && (machinePowerCycled || machineCableChecked)) {
+  if (machineCommunicationContext && machineVerifiedResolved && (machinePowerCycled || machineCableChecked)) {
     if (machinePowerCycled && machineCableChecked) {
       resolution = "Resolved the machine initialization/communication issue by reseating the serial/Molex cable connections and power cycling the PC; login and machine communication were verified afterward.";
     } else if (machinePowerCycled) {
@@ -1177,55 +1198,86 @@ function recorderSections(raw = value("newRawNotes")) {
   const issue = value("newSubcategory") || issueSummary || "";
   return { cleaned, lines, issue, issueSummary, steps, resolution };
 }
-function isRecorderOnsiteCategory(category = value("newCategory")) {
-  const normalized = String(category || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  return normalized === "keepstockonsite" || normalized === "keepstockcanadaonsite";
+function normalizeRecorderRoute(text) {
+  return String(text || "").toLowerCase().replace(/\s+/g, " ").trim();
 }
-function buildRecorderDetailedDescription(sections = recorderSections()) {
-  // US and Canada Onsite tickets intentionally use only these five fields.
-  if (isRecorderOnsiteCategory()) {
-    return `Crib/Program id: ${value("cribProgramId")}
+function recorderDetailedTemplateKind(category = value("newCategory"), subcategory = value("newSubcategory")) {
+  const cat = normalizeRecorderRoute(category);
+  const sub = normalizeRecorderRoute(subcategory);
+  if (cat === "keepstock - onsite" || cat === "keepstock canada - onsite") return "onsite";
+  if (cat === "keepstock - seaga / cm" || [
+    "keepstock - cm - ams toolbox", "keepstock - cm - locker", "keepstock - cm - carousel",
+    "keepstock - seaga - coil", "keepstock - seaga - locker"
+  ].includes(cat)) return "machine";
+  if (cat === "keepstock - cm - pc/data" && sub === "network issue - cellular") return "cellular";
+  if (cat === "keepstock - cm - pc/data" && ["hardware issue - existing badge reader", "hardware issue - new badge reader"].includes(sub)) return "badge";
+  return "standard";
+}
+function recorderIdentityTemplate() {
+  return `Template Header (DO NOT REMOVE)
+**Delete any unused sections below**
+${RECORDER_TEMPLATE_DIVIDER}
+Slack Thread URL:
+
+Parent/PRB Template: [Update/add to section below with all required data from Parents/PRB's]
+
+Crib/Program id: ${value("cribProgramId")}
 Program name: ${value("programName")}
 Company name: ${value("companyName")}
 Site ID (If Applicable): ${value("siteId")}
 Acct #: ${value("accountNumber")}`;
+}
+function recorderMachineTemplate() {
+  return `${recorderIdentityTemplate()}
+
+
+Software Version: ${value("softwareVersion")}
+Device ID (Affected): ${value("deviceId")}
+Machine Serial Number(s): ${value("machineSerial")}`;
+}
+function buildRecorderDetailedDescription() {
+  const kind = recorderDetailedTemplateKind();
+  if (kind === "onsite") return recorderIdentityTemplate();
+  if (kind === "machine") return recorderMachineTemplate();
+  if (kind === "cellular") {
+    return `${recorderMachineTemplate()}
+
+Cradlepoint Serial Number: ${value("cradlepointSerial")}
+IMEI: ${value("imei")}
+Carrier: ${value("carrier")}`;
   }
+  if (kind === "badge") {
+    return `${recorderMachineTemplate()}
 
-  const meta = RECORDER_DETAIL_FIELDS
-    .map(([id, label]) => `${label}: ${value(id)}`)
-    .join("\n");
 
-  const routing = [
-    ["Category", value("newCategory")],
-    ["Subcategory", value("newSubcategory")],
-    ["Channel", value("channel")],
-    ["Location", value("newLocation")]
-  ].map(([label, fieldValue]) => `${label}: ${fieldValue}`).join("\n");
+Badge Reader: ${value("badgeReader")}
+Model: ${value("model")}`;
+  }
+  return `${recorderMachineTemplate()}
 
-  const steps = sections.steps.map((line) => `- ${sentence(line)}`).join("\n");
-  const issue = value("newSubcategory") || sentence(sections.issue);
-  const resolution = sentence(sections.resolution);
+Cradlepoint Serial Number: ${value("cradlepointSerial")}
+IMEI: ${value("imei")}
+Carrier: ${value("carrier")}
 
-  return `Template Header (DO NOT REMOVE)
-**Delete any unused sections below**
+Badge Reader: ${value("badgeReader")}
+Model: ${value("model")}
 
-------------------------------------------------------------
-Slack Thread URL:
+Phone Model: ${value("phoneModel")}
+Phone Software Version: ${value("phoneSoftwareVersion")}
+Application: ${value("application")}
+Application Version: ${value("applicationVersion")}
+Time issue occurred: ${value("timeIssueOccurred")}
 
-Parent/PRB Template:
-
-${meta}
-
-${routing}
-
-Issue:
-${issue}
-
-Troubleshooting Steps:
-${steps}
-
-Resolution / Next Step:
-${resolution}`;
+Order #: ${value("orderNumber")}
+eConnections Status: ${value("econnectionsStatus")}
+SAP Status/EBU Number: ${value("sapStatusEbu")}
+Does user want order reposted: ${value("orderReposted")}`;
+}
+function applyRecorderRoutingTemplate() {
+  const el = $("detailedDescription");
+  if (!el) return;
+  el.value = buildRecorderDetailedDescription();
+  updateRecorderCounter("detailedDescription", "detailedCounter");
 }
 function buildRecorderWorkNotes(sections = recorderSections()) {
   const steps = sections.steps.map((line) => `- ${sentence(line)}`).join("\n");
@@ -1233,19 +1285,18 @@ function buildRecorderWorkNotes(sections = recorderSections()) {
   return `Issue:\n${value("newSubcategory") || sentence(sections.issue)}\n\nTroubleshooting Steps:\n${steps}\n\nResolution:\n${sentence(sections.resolution)}\n\nReason for Escalation:\n${escalation}`;
 }
 function buildRecorderShortDescription(sections = recorderSections()) {
-  const subcategory = value("newSubcategory");
-  let issue = normalizeRecorderTerms(sections.issueSummary || "");
-  issue = issue
-    .replace(/^(?:caller|customer|user|rep)\s+(?:wanted to|needs? to|is trying to)\s+/i, "")
+  const account = value("accountNumber");
+  let issue = normalizeRecorderTerms(sections.issueSummary || "")
+    .replace(/^(?:issue|problem|reason for (?:the )?call)\s*[:\-]\s*/i, "")
+    .replace(/^(?:caller|customer|user|rep)\s+(?:wanted to|needs? to|is trying to|reported that|reported)\s+/i, "")
     .replace(/^(?:caller|customer|rep)\s+/i, "")
     .replace(/^user\s+(?!group\b)/i, "")
     .replace(/\s+/g, " ")
     .trim();
-
+  if (!issue) issue = "Issue not identified from rough notes";
+  issue = issue.replace(/[.!?]+$/, "");
   if (issue) issue = issue[0].toUpperCase() + issue.slice(1);
-  if (!issue && subcategory) issue = subcategory;
-  if (subcategory && issue && issue.toLowerCase() !== subcategory.toLowerCase()) return `${subcategory} - ${issue}`.slice(0, 180);
-  return (issue || subcategory || "Incident support request").slice(0, 180);
+  return `Acct #: ${account} | issue - ${issue}`.slice(0, 180);
 }
 function refreshRecorderDescriptions({ cleanNotes=false }={}) {
   if (cleanNotes) $("newRawNotes").value=cleanNotesText($("newRawNotes").value);
@@ -1254,8 +1305,7 @@ function refreshRecorderDescriptions({ cleanNotes=false }={}) {
   const generatedTitle=buildRecorderShortDescription(sections);
   const titleEl=$("newTitle");
   const currentTitle=value("newTitle");
-  const subcategory=value("newSubcategory");
-  const looksAutoGenerated = !currentTitle || titleEl?.dataset?.autoGenerated === "true" || (subcategory && (currentTitle === subcategory || currentTitle.startsWith(`${subcategory} - `)));
+  const looksAutoGenerated = !currentTitle || titleEl?.dataset?.autoGenerated === "true" || /^Acct #:\s*.*\| issue - /i.test(currentTitle);
   if (looksAutoGenerated && titleEl) {
     titleEl.value=generatedTitle;
     titleEl.dataset.autoGenerated="true";
@@ -1287,13 +1337,14 @@ function normalizeWorkersAiAnalysis(analysis, fallbackSections) {
     const text=/^conditional/i.test(step)?step:`Conditional next step: ${step}`;
     if(!documented.some((existing)=>existing.toLowerCase()===text.toLowerCase()))documented.push(text);
   });
-  const manualResolution=value("resolutionOverride").trim();
+  const aiAccount=String(analysis?.account_number||"").replace(/\D/g, "");
+  if (!value("accountNumber") && /^\d{4,}$/.test(aiAccount)) $("accountNumber").value=aiAccount;
   return {
     ...fallbackSections,
     issue:normalizeRecorderTerms(String(analysis?.issue_summary||fallbackSections.issue||"").trim()),
     issueSummary:normalizeRecorderTerms(String(analysis?.issue_summary||fallbackSections.issueSummary||"").trim()),
     steps:documented.length?documented:fallbackSections.steps,
-    resolution:manualResolution||sentence(normalizeRecorderTerms(String(analysis?.resolution||"").trim())),
+    resolution:sentence(normalizeRecorderTerms(String(analysis?.resolution||"").trim())),
     aiGenerated:true,
     aiResolved:Boolean(analysis?.resolved)
   };
@@ -1322,8 +1373,7 @@ function applyRecorderSectionsToTicket(sections, sourceLabel="Local parser") {
   const generatedTitle=buildRecorderShortDescription(sections);
   const titleEl=$("newTitle");
   const currentTitle=value("newTitle");
-  const subcategory=value("newSubcategory");
-  const looksAutoGenerated=!currentTitle||titleEl?.dataset?.autoGenerated==="true"||(subcategory&&(currentTitle===subcategory||currentTitle.startsWith(`${subcategory} - `)));
+  const looksAutoGenerated=!currentTitle||titleEl?.dataset?.autoGenerated==="true"||/^Acct #:\s*.*\| issue - /i.test(currentTitle);
   if(looksAutoGenerated&&titleEl){titleEl.value=generatedTitle;titleEl.dataset.autoGenerated="true";}
   $("detailedDescription").value=buildRecorderDetailedDescription(sections);
   $("workNotes").value=buildRecorderWorkNotes(sections);
@@ -1384,11 +1434,9 @@ function setRecorderFormData(data={}) {
   RECORDER_FORM_IDS.forEach((id)=>{ const el=$(id); if(!el || id==="newCategory" || id==="newSubcategory" || el.disabled) return; if(data[id]!==undefined) el.value=data[id] || ""; });
   if (data.rawNotes!==undefined) $("newRawNotes").value=data.rawNotes || "";
   if (data.shortDescription!==undefined) $("newTitle").value=data.shortDescription || "";
-  if (data.state!==undefined) $("recorderState").value=data.state || "New";
-  if (data.assignedTo!==undefined) $("newAssignedTo").value=data.assignedTo || "";
   if (data.location!==undefined) $("newLocation").value=data.location || "";
   if (data.ticketOutput!==undefined) $("generatedTicket").value=data.ticketOutput || "";
-  updateRecorderPriority(); renderRecorderDetectedSummary(); updateRecorderCounters(); refreshIcons();
+  renderRecorderDetectedSummary(); updateRecorderCounters(); refreshIcons();
 }
 
 function getRecorderDrafts(){ try{return JSON.parse(localStorage.getItem(RECORDER_DRAFT_STORAGE_KEY))||[];}catch(e){return [];} }
@@ -1415,20 +1463,19 @@ function nextIncidentId() {
   const nums = appState.incidents.map((incident) => Number(String(incident.id).match(/(\d+)$/)?.[1] || 0));
   return `INC-${String(Math.max(6, ...nums) + 1).padStart(3, "0")}`;
 }
-function recorderSeverity(){ const p=value("priority"); if(/^1|^2/.test(p)||/critical|high/i.test(value("urgency")))return "high"; if(/^4/.test(p)&&/low/i.test(value("urgency")))return "low"; return "medium"; }
-function recorderStatus(){ const state=value("recorderState","New").toLowerCase(); if(state.includes("resolved")||state.includes("closed"))return "resolved"; if(state.includes("hold"))return "pending"; return "investigating"; }
+function recorderSeverity(){ return "medium"; }
+function recorderStatus(forcedState=""){ const state=String(forcedState||"New").toLowerCase(); if(state.includes("resolved")||state.includes("closed"))return "resolved"; if(state.includes("hold"))return "pending"; return "investigating"; }
 
 async function saveNewIncident(event, forcedState) {
   if(event?.preventDefault) event.preventDefault();
-  if(forcedState) $("recorderState").value=forcedState;
   if(!value("newTitle") || !value("detailedDescription") || !value("workNotes")) await generateTicketFromForm();
   const title=value("newTitle");
   if(!title){showToast("Add rough notes or a short description before saving.");$("newTitle").focus();return;}
   if(!value("newSubcategory")){showToast("Choose a subcategory before saving the incident.");$("newSubcategory").focus();return;}
   if(!value("generatedTicket")) await generateTicketFromForm();
   const incident={
-    id:nextIncidentId(), title, severity:recorderSeverity(), date:new Date().toISOString().slice(0,10), status:recorderStatus(),
-    assignedTo:value("newAssignedTo","Clowie Moscare"), category:value("newCategory","Technical / Other"), location:value("newLocation","Not provided"),
+    id:nextIncidentId(), title, severity:recorderSeverity(), date:new Date().toISOString().slice(0,10), status:recorderStatus(forcedState),
+    assignedTo:appState.settings?.name || "Clowie Moscare", category:value("newCategory","Technical / Other"), location:value("newLocation","Not provided"),
     notes:value("generatedTicket")||value("detailedDescription")||value("newRawNotes"), account:value("accountNumber"), device:value("deviceId"), subcategory:value("newSubcategory"), priority:value("priority"), rawNotes:value("newRawNotes"), detailedDescription:value("detailedDescription"), workNotes:value("workNotes")
   };
   appState.incidents.unshift(incident); saveAppState(); saveRecorderSettings(); renderIncidents(); updateMetrics(); stopRecorderVoiceNotes(); $("newIncidentDialog").close(); navigate("incidents"); showToast(`${incident.id} saved to the dashboard.`);
@@ -1440,14 +1487,6 @@ function resetRecorder(){
 }
 
 function appendRecorderNote(text){ const current=value("newRawNotes"); $("newRawNotes").value=current?`${current}\n${text}`:text; setRecorderSaveStatus("Unsaved changes"); }
-function appendRecorderResolution(text){
-  const el=$("resolutionOverride");
-  if(!el)return;
-  const current=String(el.value||"").trim();
-  el.value=current ? `${current} ${text}` : text;
-  setRecorderSaveStatus("Unsaved changes");
-}
-function renderRecorderSnippets(){ const el=$("resolutionSnippetRow"); if(el)el.innerHTML=RECORDER_RESOLUTION_SNIPPETS.map((s)=>`<button type="button" data-resolution-snippet="${escapeHtml(s)}">+ ${escapeHtml(s)}</button>`).join(""); }
 function isLocalFilePage(){ return window.location.protocol==="file:"; }
 
 function deepgramRecorder() { return window.IncidentRecorderDeepgram || null; }
@@ -1791,18 +1830,16 @@ function wireEvents() {
   $("pauseVoiceBtn").addEventListener("click",pauseRecorderVoiceNotes);
   $("stopVoiceBtn").addEventListener("click",stopRecorderVoiceNotes);
 
-  $("resolutionSnippetRow").addEventListener("click",(event)=>{ const btn=event.target.closest("[data-resolution-snippet]"); if(!btn)return; appendRecorderResolution(btn.dataset.resolutionSnippet); showToast("Resolution outcome added."); });
   $("recorderDraftList").addEventListener("click",(event)=>{ const btn=event.target.closest("[data-recorder-draft-action]"); if(!btn)return; handleRecorderDraftAction(btn.dataset.recorderDraftAction,btn.dataset.id); });
   $("deleteRecorderDraftsBtn").addEventListener("click",deleteRecorderDrafts);
 
-  $("newCategory").addEventListener("change",()=>{ populateRecorderSubcategories(); saveRecorderSettings(); setRecorderSaveStatus("Unsaved changes"); });
-  $("newSubcategory").addEventListener("change",()=>{ saveRecorderSettings(); setRecorderSaveStatus("Unsaved changes"); });
-  ["businessImpact","userImpact","urgency"].forEach((id)=>$(id).addEventListener("change",()=>{ updateRecorderPriority(); setRecorderSaveStatus("Unsaved changes"); }));
+  $("newCategory").addEventListener("change",()=>{ populateRecorderSubcategories(); applyRecorderRoutingTemplate(); saveRecorderSettings(); setRecorderSaveStatus("Unsaved changes"); });
+  $("newSubcategory").addEventListener("change",()=>{ applyRecorderRoutingTemplate(); saveRecorderSettings(); setRecorderSaveStatus("Unsaved changes"); });
   RECORDER_FORM_IDS.forEach((id)=>{ const el=$(id); if(!el)return; el.addEventListener("input",()=>{ setRecorderSaveStatus("Unsaved changes"); if(RECORDER_DETAIL_FIELDS.some(([fieldId])=>fieldId===id))renderRecorderDetectedSummary(); }); });
   $("detailedDescription").addEventListener("input",()=>updateRecorderCounter("detailedDescription","detailedCounter"));
   $("workNotes").addEventListener("input",()=>updateRecorderCounter("workNotes","workCounter"));
 
-  $("resetDetailedBtn").addEventListener("click",()=>{ $("detailedDescription").value=buildRecorderDetailedDescription(recorderSections()); updateRecorderCounters(); showToast("Detailed description template reset."); });
+  $("resetDetailedBtn").addEventListener("click",()=>{ $("detailedDescription").value=RECORDER_RESET_DETAIL_TEMPLATE; updateRecorderCounters(); showToast("Original detailed description template restored."); });
   $("resetWorkBtn").addEventListener("click",()=>{ $("workNotes").value=RECORDER_WORK_NOTES_TEMPLATE; updateRecorderCounters(); showToast("Work notes template reset."); });
   $("copyDetailedBtn").addEventListener("click",()=>copyText($("detailedDescription").value,"Detailed description copied."));
   $("copyWorkBtn").addEventListener("click",()=>copyText($("workNotes").value,"Work notes copied."));

@@ -82,3 +82,15 @@ Blank values remain blank and manually entered values are not overwritten by the
 ## Hosting
 
 Use GitHub Pages or another HTTPS host. Current Chrome or Edge is recommended for microphone access.
+
+
+## Template routing update
+
+- Quick Resolution and Required Ticket Info have been removed from New Incident.
+- Short Description format: `Acct #: <account> | issue - <AI issue from Rough Notes>`.
+- Keepstock - Onsite and Keepstock Canada - Onsite use the identity-only template.
+- Keepstock - Seaga / CM uses the machine template.
+- Keepstock - CM - PC/Data + Network issue - Cellular adds Cradlepoint / IMEI / Carrier.
+- Keepstock - CM - PC/Data + Existing/New badge reader adds Badge Reader / Model.
+- All other routing uses the full standard template.
+- Reset template restores the exact original reset-template spacing and field set.

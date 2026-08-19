@@ -313,15 +313,6 @@
                 <textarea id="newRawNotes" class="raw-notes" rows="8" placeholder="Example: rep unable to sync machine. Account #: 887754409. Device ID: MJ0J6D84. Located CP in NetCloud and confirmed offline. Unplugged power cable. Pressed reset. Synced machine. Sync successful."></textarea>
               </label>
 
-              <div class="snippet-card resolution-shortcuts-card">
-                <strong>Quick resolution</strong>
-                <p>Pick the outcome that best matches the call, or type your own. This overrides automatic resolution only; Rough Notes stay unchanged.</p>
-                <div class="snippet-row" id="resolutionSnippetRow"></div>
-                <label class="recorder-label resolution-override-label">Resolution outcome
-                  <textarea id="resolutionOverride" rows="2" placeholder="Example: Rep was trained on updating the user's KeepStock Web role and system access. Customer will log out and back in to verify access."></textarea>
-                </label>
-              </div>
-
               <div class="deepgram-recorder-note" id="deepgramRecorderNote">
                 <div><strong><i data-lucide="waves"></i> Deepgram Nova-3 transcription + Cloudflare ticket AI</strong><p id="deepgramRecorderHint">Deepgram captures the call. When you click Generate, the same secure Cloudflare Worker analyzes the full Rough Notes; if AI is unavailable, the local action-ledger generator is used automatically.</p></div>
                 <span class="provider-badge" id="voiceProviderBadge">Browser fallback</span>
@@ -339,7 +330,7 @@
 
             <section class="recorder-section" id="verifyDetails">
               <div class="recorder-section-heading">
-                <div><h3>2. Verify details found in notes</h3><p>The app extracts useful values from the transcript. The Issue field is taken directly from the selected Subcategory, while call chatter is removed from the generated ticket.</p></div>
+                <div><h3>2. Verify details found in notes</h3><p>The app extracts useful values from the transcript. Cloudflare AI generates the call issue from Rough Notes, while Category and Subcategory select the correct Detailed Description template.</p></div>
                 <span class="subtle-pill">Review before generate</span>
               </div>
               <div class="detected-summary" id="detectedSummary" aria-live="polite">No details extracted yet.</div>
@@ -366,22 +357,6 @@
                 <label>eConnections Status<input id="econnectionsStatus" placeholder="Optional" /></label>
                 <label>SAP Status/EBU Number<input id="sapStatusEbu" placeholder="Optional" /></label>
                 <label>Does user want order reposted<select id="orderReposted"><option value=""></option><option>Yes</option><option>No</option></select></label>
-              </div>
-            </section>
-
-            <section class="recorder-section">
-              <div class="recorder-section-heading"><div><h3>Required ticket info</h3><p>ServiceNow-ready routing and impact fields.</p></div></div>
-              <div class="recorder-form-grid required-grid">
-                <label>State<select id="recorderState"><option>New</option><option>In Progress</option><option>On Hold</option><option>Resolved</option><option>Closed</option></select></label>
-                <label><span><b>*</b> Business Impact</span><select id="businessImpact"><option>Minor</option><option>Moderate</option><option>Major</option><option>Critical</option></select></label>
-                <label><span><b>*</b> User Impact</span><select id="userImpact"><option>Single User: 1 user</option><option>Multiple Users: 2-10 users</option><option>Department: 11+ users</option><option>Site-wide</option><option>Enterprise-wide</option></select></label>
-                <label><span><b>*</b> Urgency</span><select id="urgency"><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label>
-                <label>Priority<input id="priority" disabled /></label>
-                <label><span><b>*</b> Assignment Group</span><input id="assignmentGroup" value="T1 KeepStock" /></label>
-                <label><span><b>*</b> Assigned To</span><input id="newAssignedTo" value="Clowie Moscare" /></label>
-                <label>Service<input id="service" placeholder="Example: KeepStock" /></label>
-                <label>Service offering<input id="serviceOffering" placeholder="Optional" /></label>
-                <label>Configuration item<input id="configurationItem" placeholder="CI, machine, or asset" /></label>
               </div>
             </section>
 
@@ -421,7 +396,7 @@
         </div>
 
         <aside class="recorder-output-column" aria-label="Generated ticket">
-          <div class="section-row"><div><h3>Generated ticket</h3><p>Copy-ready output with greetings and call-control chatter removed. Issue uses the selected Subcategory.</p></div><span class="subtle-pill">Editable</span></div>
+          <div class="section-row"><div><h3>Generated ticket</h3><p>Copy-ready output with the account number and AI-generated issue in the Short Description, plus the correct template for the selected routing.</p></div><span class="subtle-pill">Editable</span></div>
           <div class="time-saved" id="recorderTimeSaved"></div>
           <textarea id="generatedTicket" class="generated-ticket" rows="25" placeholder="Your generated ticket will appear here. You can edit it before copying."></textarea>
           <div class="button-row output-actions">
