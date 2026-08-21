@@ -3,348 +3,79 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#020617" />
-  <meta name="description" content="IncidentRecorder surveillance incident management dashboard" />
-  <title>IncidentRecorder | SecureWatch</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="theme-color" content="#07111f" />
+  <meta name="description" content="IncidentRecorder support-call transcription and ticket generation." />
+  <title>IncidentRecorder</title>
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/recorder.css" />
+  <link rel="stylesheet" href="styles/settings.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
-      <div class="sidebar-header">
-        <button class="brand" type="button" data-nav="dashboard" aria-label="Go to dashboard">
-          <span class="brand-mark"><i data-lucide="shield-check"></i></span>
-          <span class="brand-name">SecureWatch</span>
-        </button>
-        <button class="icon-button sidebar-toggle" id="sidebarToggle" type="button" aria-label="Collapse sidebar">
-          <i data-lucide="chevron-left"></i>
-        </button>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">IR</span><div><strong>IncidentRecorder</strong><small>Support call → clean ticket</small></div></div>
+    <nav class="main-nav" aria-label="Primary navigation">
+      <button class="nav-button active" type="button" data-nav="recorder">Recorder</button>
+      <button class="nav-button" type="button" data-nav="history">History</button>
+      <button class="nav-button" type="button" data-nav="settings">Settings</button>
+    </nav>
+    <span class="save-status" id="saveStatus">Not saved</span>
+  </header>
+
+  <main class="shell">
+    <section class="page active" data-page="recorder">
+      <div class="workflow-header">
+        <div><h1>New Incident</h1><p>Capture the call, verify extracted values, generate the ticket, then copy or save it.</p></div>
+        <div class="workflow-steps" aria-label="Workflow"><span>Capture</span><span>Verify</span><span>Generate</span><span>Save</span></div>
       </div>
 
-      <nav class="sidebar-nav">
-        <button class="nav-item active" type="button" data-nav="dashboard"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></button>
-        <button class="nav-item" type="button" data-nav="incidents"><i data-lucide="circle-alert"></i><span>Incidents</span></button>
-        <button class="nav-item" type="button" data-nav="uploads"><i data-lucide="upload"></i><span>Uploads</span></button>
-        <button class="nav-item" type="button" data-nav="analytics"><i data-lucide="chart-no-axes-column-increasing"></i><span>Analytics</span></button>
-        <button class="nav-item" type="button" data-nav="settings"><i data-lucide="settings"></i><span>Settings</span></button>
-      </nav>
-
-      <div class="sidebar-profile">
-        <div class="avatar" aria-hidden="true">CM</div>
-        <div class="profile-copy">
-          <strong>Clowie Moscare</strong>
-          <span>Security Admin</span>
-        </div>
-      </div>
-    </aside>
-
-    <div class="mobile-topbar">
-      <button class="icon-button" id="mobileMenuBtn" type="button" aria-label="Open navigation"><i data-lucide="menu"></i></button>
-      <span>SecureWatch</span>
-      <button class="icon-button" type="button" data-open-new aria-label="Add incident"><i data-lucide="plus"></i></button>
-    </div>
-
-    <main class="main-content" id="mainContent">
-      <section class="page active" id="page-dashboard" data-page="dashboard">
-        <div class="page-header">
-          <div>
-            <h1>Surveillance Dashboard</h1>
-            <p id="dashboardDate">Tuesday, October 7, 2025</p>
-          </div>
-          <label class="compact-select" aria-label="Dashboard date range">
-            <select id="dashboardRange">
-              <option value="today">Today</option>
-              <option value="week" selected>This Week</option>
-              <option value="month">This Month</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="metric-grid">
-          <article class="metric-card">
-            <div class="metric-top"><span>Total Incidents</span><i class="metric-blue" data-lucide="circle-alert"></i></div>
-            <strong id="metricTotal">200</strong>
-            <small id="metricTotalNote">+12% from last week</small>
-          </article>
-          <article class="metric-card">
-            <div class="metric-top"><span>Resolved Incidents</span><i class="metric-green" data-lucide="circle-check-big"></i></div>
-            <strong id="metricResolved">156</strong>
-            <small id="metricResolvedNote">78% resolution rate</small>
-          </article>
-          <article class="metric-card">
-            <div class="metric-top"><span>Pending Incidents</span><i class="metric-yellow" data-lucide="clock-3"></i></div>
-            <strong id="metricPending">44</strong>
-            <small id="metricPendingNote">22% pending review</small>
-          </article>
-          <article class="metric-card">
-            <div class="metric-top"><span>Total Video Uploads</span><i class="metric-purple" data-lucide="video"></i></div>
-            <strong id="metricUploads">342</strong>
-            <small>2.4 TB storage used</small>
-          </article>
-        </div>
-
-        <div class="chart-grid dashboard-charts">
-          <article class="card chart-card">
-            <h2>Incidents Over Time</h2>
-            <div class="chart-wrap"><canvas id="incidentTrendChart" role="img" aria-label="Line chart of incidents over time"></canvas></div>
-          </article>
-          <article class="card chart-card">
-            <h2>Incidents by Severity</h2>
-            <div class="chart-wrap donut-layout">
-              <canvas id="severityChart" role="img" aria-label="Donut chart of incidents by severity"></canvas>
-              <div class="chart-legend" id="severityLegend"></div>
-            </div>
-          </article>
-          <article class="card chart-card chart-span-2">
-            <h2>Resolved vs Unresolved</h2>
-            <div class="chart-wrap wide-chart"><canvas id="resolutionChart" role="img" aria-label="Bar chart of resolved versus unresolved incidents"></canvas></div>
-          </article>
-        </div>
-      </section>
-
-      <section class="page" id="page-incidents" data-page="incidents">
-        <div class="page-header">
-          <div>
-            <h1>Incident Management</h1>
-            <p>Track, document, and resolve surveillance incidents.</p>
-          </div>
-          <button class="button primary" type="button" data-open-new><i data-lucide="plus"></i> Add New Incident</button>
-        </div>
-
-        <article class="card filter-card">
-          <h2>Filters</h2>
-          <div class="filters-row">
-            <label>Severity
-              <select id="severityFilter"><option value="all">All</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
-            </label>
-            <label>Status
-              <select id="statusFilter"><option value="all">All</option><option value="resolved">Resolved</option><option value="pending">Pending</option><option value="investigating">Investigating</option></select>
-            </label>
-            <label class="search-field">Search
-              <span class="input-with-icon"><i data-lucide="search"></i><input id="incidentSearch" type="search" placeholder="ID, title, assignee..." /></span>
-            </label>
-          </div>
-        </article>
-
-        <article class="card table-card">
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Incident ID</th><th>Title</th><th>Severity</th><th>Date</th><th>Status</th><th>Assigned To</th><th>Actions</th></tr></thead>
-              <tbody id="incidentTableBody"></tbody>
-            </table>
-          </div>
-          <div class="empty-state" id="incidentEmpty" hidden><i data-lucide="inbox"></i><p>No incidents match these filters.</p></div>
-        </article>
-      </section>
-
-      <section class="page" id="page-uploads" data-page="uploads">
-        <div class="page-header">
-          <div><h1>Video Uploads</h1><p>Upload and manage surveillance footage.</p></div>
-        </div>
-
-        <article class="card upload-card">
-          <h2>Upload Video Evidence</h2>
-          <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="Upload video files">
-            <i data-lucide="upload-cloud"></i>
-            <h3>Drag and drop video files here</h3>
-            <p>or click to browse</p>
-            <button class="button primary" type="button" id="selectFilesBtn"><i data-lucide="file-video"></i> Select Files</button>
-            <small>Supported formats: MP4, AVI, MOV (Max 2GB)</small>
-            <input id="videoFileInput" type="file" accept="video/mp4,video/quicktime,video/x-msvideo" multiple hidden />
-          </div>
-          <div class="upload-progress" id="uploadProgress" hidden>
-            <div><span id="uploadName">Uploading camera_footage.mp4</span><strong id="uploadPercent">0%</strong></div>
-            <div class="progress-track"><span id="uploadProgressBar"></span></div>
-          </div>
-        </article>
-
-        <article class="card table-card">
-          <div class="card-heading"><h2>Uploaded Videos</h2><span class="subtle-pill" id="videoCount">4 files</span></div>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Video ID</th><th>Incident ID</th><th>Filename</th><th>Upload Date</th><th>Size</th><th>Actions</th></tr></thead>
-              <tbody id="videoTableBody"></tbody>
-            </table>
-          </div>
-        </article>
-      </section>
-
-      <section class="page" id="page-analytics" data-page="analytics">
-        <div class="page-header">
-          <div><h1>Analytics Dashboard</h1><p>Comprehensive incident analytics and insights.</p></div>
-          <label class="compact-select"><select id="analyticsRange"><option>Last Month</option><option>Last 3 Months</option><option selected>Last 6 Months</option><option>Last Year</option></select></label>
-        </div>
-
-        <div class="analytics-metrics">
-          <article class="metric-card"><span>Average Resolution Time</span><strong>3.2 hours</strong><small class="positive">-18% from last period</small></article>
-          <article class="metric-card"><span>Resolution Rate</span><strong>87.5%</strong><small class="positive">+5.2% from last period</small></article>
-          <article class="metric-card"><span>Most Active Location</span><strong>Main Entrance</strong><small>42 incidents this period</small></article>
-        </div>
-
-        <div class="chart-grid analytics-grid">
-          <article class="card chart-card"><h2>Incident Trend Over Time</h2><div class="chart-wrap"><canvas id="analyticsTrendChart"></canvas></div></article>
-          <article class="card chart-card"><h2>Incidents by Category</h2><div class="chart-wrap donut-layout"><canvas id="categoryChart"></canvas><div class="chart-legend" id="categoryLegend"></div></div></article>
-          <article class="card chart-card"><h2>Resolution Time Distribution</h2><div class="chart-wrap"><canvas id="resolutionTimeChart"></canvas></div></article>
-          <article class="card chart-card"><h2>Incidents by Location</h2><div class="chart-wrap"><canvas id="locationChart"></canvas></div></article>
-        </div>
-      </section>
-
-      <section class="page" id="page-settings" data-page="settings">
-        <div class="page-header"><div><h1>Settings</h1><p>Manage your account and application preferences.</p></div></div>
-        <div class="settings-grid">
-          <article class="card settings-card">
-            <h2><i data-lucide="user-round"></i> Profile Settings</h2>
-            <label>Full Name<input id="profileName" type="text" value="Clowie Moscare" /></label>
-            <label>Email<input id="profileEmail" type="email" value="clowie@securewatch.local" /></label>
-            <label>Role<input type="text" value="Security Admin" disabled /></label>
-            <button class="button primary full" id="saveProfileBtn" type="button">Save Changes</button>
-          </article>
-
-          <article class="card settings-card">
-            <h2><i data-lucide="brain-circuit"></i> Deepgram + Cloudflare AI</h2>
-            <p class="settings-help">One secure Cloudflare Worker handles both services: it mints temporary Deepgram tokens for voice transcription and analyzes Rough Notes with Workers AI when you generate a ticket.</p>
-            <label>Secure Worker token endpoint<input id="deepgramTokenEndpoint" type="url" placeholder="https://incident-recorder-deepgram.your-subdomain.workers.dev/token" autocomplete="off" /></label>
-            <div class="settings-actions">
-              <button class="button primary" id="saveDeepgramBtn" type="button">Save Endpoint</button>
-              <button class="button" id="testDeepgramBtn" type="button">Test Deepgram</button>
-            </div>
-            <div class="connection-status" id="deepgramSettingsStatus" aria-live="polite">Not configured</div>
-            <div class="ai-settings-block">
-              <div><strong>Cloudflare Workers AI ticket analysis</strong><span>Uses the same Worker at <code>/analyze</code>. It extracts the issue, every troubleshooting action, the actual resolution, and conditional next steps from the full Rough Notes.</span></div>
-              <button class="button" id="testWorkersAiBtn" type="button">Test Ticket AI</button>
-            </div>
-            <div class="connection-status" id="workersAiSettingsStatus" aria-live="polite">Save the Worker endpoint first</div>
-            <small>Audio is sent to Deepgram only while voice notes are running. Rough Notes are sent to Cloudflare Workers AI only when you generate or test a ticket. Drafts and ticket formatting remain in your browser.</small>
-          </article>
-
-          <article class="card settings-card">
-            <h2><i data-lucide="bell"></i> Notification Preferences</h2>
-            <div class="switch-row"><div><strong>Email Notifications</strong><span>Receive incident alerts via email</span></div><label class="switch"><input type="checkbox" checked /><span></span></label></div>
-            <div class="switch-row"><div><strong>High Priority Alerts</strong><span>Instant alerts for high severity incidents</span></div><label class="switch"><input type="checkbox" checked /><span></span></label></div>
-            <div class="switch-row"><div><strong>Daily Summary</strong><span>Receive daily incident summary</span></div><label class="switch"><input type="checkbox" /><span></span></label></div>
-            <div class="switch-row"><div><strong>Resolution Updates</strong><span>Get notified when incidents are resolved</span></div><label class="switch"><input type="checkbox" checked /><span></span></label></div>
-          </article>
-
-          <article class="card settings-card">
-            <h2><i data-lucide="shield"></i> Security Settings</h2>
-            <label>Current Password<input type="password" placeholder="Enter current password" /></label>
-            <label>New Password<input type="password" placeholder="Enter new password" /></label>
-            <label>Confirm New Password<input type="password" placeholder="Confirm new password" /></label>
-            <div class="switch-row"><div><strong>Two-Factor Authentication</strong><span>Add an extra layer of security</span></div><label class="switch"><input type="checkbox" /><span></span></label></div>
-            <button class="button primary full" id="updatePasswordBtn" type="button">Update Password</button>
-          </article>
-
-          <article class="card settings-card">
-            <h2><i data-lucide="database"></i> Data Management</h2>
-            <div class="switch-row"><div><strong>Auto-delete resolved incidents</strong><span>After 90 days</span></div><label class="switch"><input type="checkbox" /><span></span></label></div>
-            <div class="switch-row"><div><strong>Video retention period</strong><span>Keep videos for 30 days</span></div><label class="switch"><input type="checkbox" checked /><span></span></label></div>
-            <div class="storage-block"><strong>Storage Usage</strong><div class="progress-track"><span style="width:68%"></span></div><span>2.4 TB of 3.5 TB used</span></div>
-            <button class="button full" id="exportDataBtn" type="button"><i data-lucide="download"></i> Export All Data</button>
-          </article>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <div class="overlay" id="mobileOverlay" hidden></div>
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-  <dialog class="modal" id="incidentDetailDialog">
-    <div class="modal-shell detail-modal-shell">
-      <div class="modal-header"><div><span class="eyebrow">Incident record</span><h2>Incident Details</h2></div><button class="icon-button" type="button" data-close-dialog="incidentDetailDialog" aria-label="Close"><i data-lucide="x"></i></button></div>
-      <div id="incidentDetailContent"></div>
-    </div>
-  </dialog>
-
-  <dialog class="modal" id="videoDialog">
-    <div class="modal-shell video-modal-shell">
-      <div class="modal-header"><div><span class="eyebrow">Evidence</span><h2>Video Playback</h2></div><button class="icon-button" type="button" data-close-dialog="videoDialog" aria-label="Close"><i data-lucide="x"></i></button></div>
-      <div id="videoDetailMeta" class="detail-meta-grid"></div>
-      <div class="video-stage"><i data-lucide="video-off"></i><strong>Video preview unavailable in the static demo</strong><span>Your uploaded file metadata is still stored locally.</span></div>
-    </div>
-  </dialog>
-
-  <dialog class="modal" id="newIncidentDialog">
-    <div class="modal-shell recorder-modal-shell">
-      <div class="modal-header recorder-header recorder-header-compact">
-        <div class="recorder-brand">
-          <span class="recorder-brand-mark"><i data-lucide="shield-check"></i></span>
-          <div><strong>IncidentRecorder</strong></div>
-        </div>
-        <nav class="recorder-workflow" aria-label="Incident workflow">
-          <a href="#captureNotes">Capture</a>
-          <a href="#verifyDetails">Verify</a>
-          <a href="#ticketDescriptions">Generate</a>
-          <a href="#recorderDrafts">Save</a>
-        </nav>
-        <div class="recorder-header-actions">
-          <span class="subtle-pill" id="recorderSaveStatus">Not saved</span>
-          <button class="icon-button" type="button" data-close-dialog="newIncidentDialog" aria-label="Close"><i data-lucide="x"></i></button>
-        </div>
+      <div class="routing-strip">
+        <label><span>Category</span><select id="newCategory"></select></label>
+        <label><span>Subcategory</span><select id="newSubcategory"></select></label>
       </div>
 
-      <div class="recorder-routing-strip" aria-label="Ticket routing">
-        <label><span><b>*</b> Category</span><select id="newCategory" form="newIncidentForm"></select></label>
-        <label><span><b>*</b> Subcategory</span><select id="newSubcategory" form="newIncidentForm"></select></label>
-      </div>
+      <div class="workspace-grid">
+        <div class="workspace-main">
+          <form id="newIncidentForm" autocomplete="off" onsubmit="return false;">
+            <section class="panel" id="captureNotes">
+              <div class="section-heading"><div><span class="step-number">1</span><div><h2>Capture call notes</h2><p>Deepgram captures finalized speech into Rough Notes. Rough Notes are never rewritten by ticket generation.</p></div></div><span class="provider-badge" id="voiceProviderBadge">Browser fallback</span></div>
 
-      <div class="recorder-workspace">
-        <div class="recorder-form-column">
-          <form id="newIncidentForm" autocomplete="off">
-            <section class="recorder-section recorder-primary" id="captureNotes">
-              <div class="recorder-section-heading">
-                <div><h3>1. Capture call notes</h3><p>Use rough notes or voice dictation first. You can clean and extract details before generating.</p></div>
-                <span class="subtle-pill">Write fast here</span>
-              </div>
-
-              <div class="voice-card" aria-label="Voice note controls">
-                <div class="voice-status"><span class="voice-dot" id="voiceDot"></span><span id="voiceStatus">Voice notes are off. Click Start voice notes. Deepgram reconnects automatically until you click Stop.</span></div>
-                <div class="voice-tools">
-                  <button class="button primary" id="startVoiceBtn" type="button"><i data-lucide="mic"></i> Start voice notes</button>
-                  <button class="button" id="pauseVoiceBtn" type="button"><i data-lucide="pause"></i> Pause</button>
-                  <button class="button" id="stopVoiceBtn" type="button"><i data-lucide="square"></i> Stop</button>
-                  <button class="button" id="cleanNotesBtn" type="button"><i data-lucide="sparkles"></i> Clean rough notes</button>
+              <div class="voice-card">
+                <div class="voice-state"><span class="voice-dot ready" id="voiceDot"></span><span id="voiceStatus">Voice notes are ready.</span></div>
+                <div class="button-row">
+                  <button class="button primary" id="startVoiceBtn" type="button">Start voice notes</button>
+                  <button class="button" id="pauseVoiceBtn" type="button" disabled>Pause</button>
+                  <button class="button" id="stopVoiceBtn" type="button" disabled>Stop</button>
+                  <button class="button" id="cleanNotesBtn" type="button">Clean Rough Notes</button>
                 </div>
-                <div class="interim-transcript" id="interimTranscript" aria-live="polite">Interim transcript will appear here while listening.</div>
-                <p>Tip: speak short action lines. The cleaner ignores common greetings/filler and focuses on issue, troubleshooting, findings, and resolution.</p>
+                <div class="interim" id="interimTranscript" aria-live="polite">Interim transcript will appear here while listening.</div>
+                <p class="provider-help" id="deepgramRecorderHint"></p>
               </div>
 
-              <label class="recorder-label">Rough notes from the call
-                <textarea id="newRawNotes" class="raw-notes" rows="8"></textarea>
+              <label class="field-label">Rough Notes
+                <textarea id="newRawNotes" rows="11"></textarea>
               </label>
-
-              <div class="deepgram-recorder-note" id="deepgramRecorderNote">
-                <div><strong><i data-lucide="waves"></i> Deepgram Nova-3 transcription + Cloudflare ticket AI</strong><p id="deepgramRecorderHint">Deepgram captures the call. When you click Generate, the same secure Cloudflare Worker analyzes the full Rough Notes; if AI is unavailable, the local action-ledger generator is used automatically.</p></div>
-                <span class="provider-badge" id="voiceProviderBadge">Browser fallback</span>
-              </div>
-
-              <div class="button-row recorder-action-row">
-                <button class="button" id="extractDetailsBtn" type="button"><i data-lucide="scan-search"></i> Extract details</button>
-                <button class="button primary" id="generateTicketBtn" type="button"><i data-lucide="wand-sparkles"></i> Generate clean ticket</button>
-                <button class="button" id="saveRecorderDraftBtn" type="button"><i data-lucide="save"></i> Save draft</button>
-                <button class="button" id="submitIncidentBtn" type="button">Submit draft</button>
-                <button class="button" id="resolveIncidentBtn" type="button"><i data-lucide="circle-check-big"></i> Resolve incident</button>
-                <button class="button danger" id="resetRecorderBtn" type="button">Reset all fields</button>
+              <div class="button-row">
+                <button class="button" id="extractDetailsBtn" type="button">Extract details</button>
+                <button class="button primary" id="generateTicketBtn" type="button"><span aria-hidden="true">✦</span> Generate clean ticket</button>
+                <button class="button" id="saveDraftBtn" type="button">Save draft</button>
+                <button class="button danger" id="resetWorkspaceBtn" type="button">Reset workspace</button>
               </div>
             </section>
 
-            <section class="recorder-section" id="verifyDetails">
-              <div class="recorder-section-heading">
-                <div><h3>2. Verify details found in notes</h3><p>The app extracts useful values from the transcript. Cloudflare AI generates the call issue from Rough Notes, while Category and Subcategory select the correct Detailed Description template.</p></div>
-                <span class="subtle-pill">Review before generate</span>
-              </div>
-              <div class="detected-summary" id="detectedSummary" aria-live="polite">No details extracted yet.</div>
-              <div class="recorder-form-grid detail-grid">
+            <section class="panel" id="verifyDetails">
+              <div class="section-heading"><div><span class="step-number">2</span><div><h2>Verify extracted details</h2><p>Values found in Rough Notes fill blank fields only. Manual values are never replaced automatically.</p></div></div></div>
+              <div class="detected-summary" id="detectedSummary"><span>No details extracted yet.</span></div>
+              <div class="field-grid">
                 <label>Crib/Program id<input id="cribProgramId" /></label>
                 <label>Program name<input id="programName" /></label>
                 <label>Company name<input id="companyName" /></label>
                 <label>Site ID<input id="siteId" /></label>
-                <label>Acct #<input id="accountNumber" /></label>
+                <label>Acct #<input id="accountNumber" inputmode="numeric" /></label>
                 <label>Software Version<input id="softwareVersion" /></label>
                 <label>Device ID (Affected)<input id="deviceId" /></label>
                 <label>Machine Serial Number(s)<input id="machineSerial" /></label>
                 <label>Cradlepoint Serial Number<input id="cradlepointSerial" /></label>
-                <label>IMEI<input id="imei" /></label>
+                <label>IMEI<input id="imei" inputmode="numeric" /></label>
                 <label>Carrier<input id="carrier" /></label>
                 <label>Badge Reader<input id="badgeReader" /></label>
                 <label>Model<input id="model" /></label>
@@ -360,74 +91,80 @@
               </div>
             </section>
 
-            <details class="recorder-section optional-section">
-              <summary>Advanced and optional fields</summary>
-              <div class="recorder-form-grid optional-grid">
-                <label>Channel<select id="channel"><option>Phone</option><option>Email</option><option>Slack</option><option>Chat</option><option>Self-Service</option><option>Monitoring</option></select></label>
-                <label>Location<input id="newLocation" /></label>
-                <label>Parts Request Number(s)<input id="partsRequest" /></label>
-                <label>Device / asset<input id="deviceAsset" /></label>
-                <label>Application / service note<input id="applicationService" /></label>
-                <label>Related Search<input id="relatedSearch" type="search" /></label>
-                <label>Knowledge scope<select id="knowledgeScope"><option>Knowledge & Catalog (All)</option><option>Knowledge</option><option>Catalog</option></select></label>
-                <label>Watch list<input id="watchList" /></label>
-                <label>Resolution Code<select id="resolutionCode"><option value="">-- None --</option><option>Resolved by Service Desk</option><option>Resolved by T2</option><option>Vendor / Carrier Issue</option><option>User Education</option><option>Duplicate Incident</option></select></label>
-                <label class="span-3">Close Notes<textarea id="closeNotes" rows="4" placeholder="Final customer-facing close notes..."></textarea></label>
-              </div>
-            </details>
+            <section class="panel" id="ticketDescriptions">
+              <div class="section-heading"><div><span class="step-number">3</span><div><h2>Ticket descriptions</h2><p>Cloudflare AI analyzes the complete Rough Notes. Ticket formatting stays local and deterministic.</p></div></div><span class="generation-status" id="generationStatus"></span></div>
 
-            <section class="recorder-section" id="ticketDescriptions">
-              <div class="recorder-section-heading"><div><h3>3. Ticket descriptions</h3><p>Generated from your notes and still fully editable.</p></div></div>
-              <label class="recorder-label"><span><b>*</b> Short Description</span><input id="newTitle" maxlength="180" placeholder="Generated from draft notes or type your own" /></label>
-              <label class="recorder-label"><span><b>*</b> Detailed Description</span><textarea id="detailedDescription" rows="13" maxlength="4000"></textarea></label>
-              <div class="field-tools"><span id="detailedCounter">4000 characters remaining</span><div><button class="button" id="resetDetailedBtn" type="button">Reset template</button><button class="button" id="copyDetailedBtn" type="button">Copy detailed description</button></div></div>
-              <label class="recorder-label"><span><b>*</b> Work Notes</span><textarea id="workNotes" class="work-notes" rows="10" maxlength="4000"></textarea></label>
-              <div class="field-tools"><span id="workCounter">4000 characters remaining</span><div><button class="button" id="resetWorkBtn" type="button">Reset template</button><button class="button" id="copyWorkBtn" type="button">Copy work notes</button></div></div>
+              <label class="field-label">Short Description<input id="newTitle" maxlength="180" /></label>
+              <div class="field-actions single-action"><button class="button small" type="button" data-copy-target="short">Copy short description</button></div>
+
+              <label class="field-label">Detailed Description<textarea id="detailedDescription" rows="17" maxlength="6000"></textarea></label>
+              <div class="template-notice" id="templateNotice" hidden>Routing changed while this field contains manual edits. Your edits were preserved. <button type="button" id="applyRoutingTemplateBtn">Apply routing template</button></div>
+              <div class="field-actions"><button class="button small" id="resetDetailedBtn" type="button">Reset original template</button><button class="button small" type="button" data-copy-target="detailed">Copy detailed description</button></div>
+
+              <label class="field-label">Work Notes<textarea id="workNotes" rows="13" maxlength="6000"></textarea></label>
+              <div class="field-actions"><button class="button small" id="resetWorkBtn" type="button">Reset Work Notes</button><button class="button small" type="button" data-copy-target="work">Copy Work Notes</button></div>
             </section>
           </form>
 
-          <section class="recorder-section recorder-drafts" id="recorderDrafts">
-            <div class="recorder-section-heading">
-              <div><h3>Saved drafts</h3><p>Saved only in this browser. Recent category choices are remembered.</p></div>
-              <button class="action-link" id="deleteRecorderDraftsBtn" type="button">Delete all</button>
-            </div>
-            <div class="recorder-draft-list" id="recorderDraftList">No saved drafts yet.</div>
+          <section class="panel">
+            <div class="section-heading"><div><span class="step-number">4</span><div><h2>Saved drafts</h2><p>Drafts are stored only in this browser.</p></div></div></div>
+            <div class="saved-list" id="draftList"></div>
           </section>
         </div>
 
-        <aside class="recorder-output-column" aria-label="Generated ticket">
-          <div class="section-row"><div><h3>Generated ticket</h3><p>Copy-ready output with the account number and AI-generated issue in the Short Description, plus the correct template for the selected routing.</p></div><span class="subtle-pill">Editable</span></div>
-          <div class="time-saved" id="recorderTimeSaved"></div>
-          <textarea id="generatedTicket" class="generated-ticket" rows="25" placeholder="Your generated ticket will appear here. You can edit it before copying."></textarea>
-          <div class="button-row output-actions">
-            <button class="button primary" id="copyGeneratedBtn" type="button"><i data-lucide="copy"></i> Copy ticket</button>
-            <button class="button" id="copyWorkFromOutputBtn" type="button">Copy work notes</button>
-            <button class="button" id="copyShortFromOutputBtn" type="button">Copy short description</button>
-            <button class="button" id="copyDetailedFromOutputBtn" type="button">Copy detailed description</button>
-            <button class="button" id="downloadGeneratedBtn" type="button"><i data-lucide="download"></i> Download .txt</button>
-          </div>
-          <button class="button primary full save-incident-button" id="saveIncidentBtn" type="button"><i data-lucide="save"></i> Save Incident to Dashboard</button>
-
-          <div class="review-card">
-            <strong>Before copying</strong>
-            <label><input type="checkbox" /> Account/program details verified</label>
-            <label><input type="checkbox" /> Device ID and machine serial verified</label>
-            <label><input type="checkbox" /> Troubleshooting steps complete</label>
-            <label><input type="checkbox" /> Resolution confirmed or escalation reason added</label>
-          </div>
-          <div class="good-note-card">
-            <strong>Good note pattern</strong>
-            <p>Write short lines while you are on the call. The app turns them into Detailed Description and Work Notes.</p>
-            <ul><li>rep unable to sync machine</li><li>Account #: 887754409</li><li>Device ID: MJ0J6D84</li><li>located CP in NetCloud and confirmed offline</li><li>sync successful</li></ul>
-          </div>
-          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>Voice audio is sent to Deepgram while recording. When you click Generate, the Rough Notes are sent to your Cloudflare Worker for Workers AI analysis. Manual ticket fields, drafts, and saved incident records remain stored in your browser.</span></div>
+        <aside class="output-column">
+          <section class="panel output-panel">
+            <div class="section-heading compact"><div><h2>Generated ticket</h2><p>This is a derived preview. Edit Short Description, Detailed Description, or Work Notes above.</p></div></div>
+            <textarea id="generatedTicket" rows="30" readonly></textarea>
+            <div class="output-buttons">
+              <button class="button primary" type="button" data-copy-target="ticket">Copy ticket</button>
+              <button class="button" type="button" data-copy-target="work">Copy Work Notes</button>
+              <button class="button" type="button" data-copy-target="short">Copy short description</button>
+              <button class="button" type="button" data-copy-target="detailed">Copy detailed description</button>
+              <button class="button" id="downloadTicketBtn" type="button">Download .txt</button>
+              <button class="button success" id="saveHistoryBtn" type="button">Save to History</button>
+            </div>
+          </section>
         </aside>
       </div>
-    </div>
-  </dialog>
+    </section>
 
-  <script async src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" onload="window.lucide && window.lucide.createIcons({ attrs: { 'stroke-width': 1.8 } })"></script>
+    <section class="page" data-page="history">
+      <div class="page-heading"><div><h1>Ticket History</h1><p>Tickets explicitly saved from IncidentRecorder on this browser.</p></div></div>
+      <div class="history-list" id="historyList"></div>
+    </section>
+
+    <section class="page" data-page="settings">
+      <div class="page-heading"><div><h1>Settings</h1><p>Only settings that actually affect IncidentRecorder are shown here.</p></div></div>
+      <div class="settings-grid">
+        <section class="panel settings-card">
+          <h2>Profile</h2>
+          <label>Display name<input id="profileName" /></label>
+          <button class="button primary" id="saveProfileBtn" type="button">Save profile</button>
+          <p class="muted">Stored locally in this browser.</p>
+        </section>
+
+        <section class="panel settings-card wide">
+          <h2>Deepgram + Cloudflare Workers AI</h2>
+          <p>One Cloudflare Worker provides temporary Deepgram tokens at <code>/token</code> and structured ticket analysis at <code>/analyze</code>.</p>
+          <label>Secure Worker token endpoint<input id="deepgramTokenEndpoint" type="url" placeholder="https://your-worker.your-subdomain.workers.dev/token" autocomplete="off" /></label>
+          <div class="button-row"><button class="button primary" id="saveEndpointBtn" type="button">Save endpoint</button><button class="button" id="testDeepgramBtn" type="button">Test Deepgram</button><button class="button" id="testWorkersAiBtn" type="button">Test Ticket AI</button></div>
+          <div class="status-line"><strong>Deepgram:</strong> <span id="deepgramSettingsStatus">Not configured</span></div>
+          <div class="status-line"><strong>Workers AI:</strong> <span id="workersAiSettingsStatus">Save the Worker endpoint first</span></div>
+          <p class="muted">Permanent Deepgram credentials belong only in the Cloudflare Worker secret. Do not put them in GitHub or this page.</p>
+        </section>
+
+        <section class="panel settings-card wide">
+          <h2>Browser data</h2>
+          <p>Drafts and saved history are versioned and stored locally. Export them before clearing browser data or switching devices.</p>
+          <div class="button-row"><button class="button" id="exportDataBtn" type="button">Export JSON</button><button class="button danger" id="clearDataBtn" type="button">Clear local data</button></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="deepgram.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>

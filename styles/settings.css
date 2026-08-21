@@ -1,0 +1,9 @@
+.settings-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.settings-card { display: grid; gap: 12px; align-content: start; }
+.settings-card.wide { grid-column: span 2; }
+.settings-card h2, .settings-card p { margin-bottom: 0; }
+.status-line { color: #c7d4e6; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; background: #0a1727; }
+@media (max-width: 760px) {
+  .settings-grid { grid-template-columns: 1fr; }
+  .settings-card.wide { grid-column: auto; }
+}
