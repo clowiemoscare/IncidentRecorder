@@ -32,6 +32,7 @@ export function loadSettings() {
   return {
     name: "",
     deepgramTokenEndpoint: "",
+    voiceProvider: "auto",
     categoryId: defaultCategoryId(),
     subcategoryId: "",
     ...readJSON(KEYS.settings, {})

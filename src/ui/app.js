@@ -5,7 +5,8 @@ import {
   getCategory,
   resolveCategoryId,
   resolveSubcategoryId,
-  subcategoryLabel
+  subcategoryLabel,
+  verifyFieldIdsFor
 } from "../config/ticket-routing.js";
 import {
   clearStoredData,
@@ -23,7 +24,7 @@ import { analyzeWithWorkersAi, workersAiEndpoint } from "../ticket/ai-client.js"
 import { DETAIL_FIELDS, emptyFields, extractFields } from "../ticket/extractor.js";
 import { generateTicketModel, renderTicketText } from "../ticket/generator.js";
 import { analyzeLocally } from "../ticket/local-analyzer.js";
-import { RESET_TEMPLATE, renderDetailedDescription } from "../ticket/templates.js";
+import { GEN2_RESET_TEMPLATE, STANDARD_RESET_TEMPLATE, renderDetailedDescription } from "../ticket/templates.js";
 import { cleanNotes, sentence } from "../ticket/text.js";
 import { $, $$, copyText, downloadText, escapeHtml } from "./dom.js";
 
@@ -38,6 +39,7 @@ export class IncidentRecorderApp {
     this.history = loadHistory();
     this.dirty = { short: false, detail: false, work: false };
     this.generatedOnce = false;
+    this.lastAnalysis = null;
     this.toastTimer = null;
     this.voice = new VoiceController({
       onFinal: (text) => this.appendRoughNote(text),
@@ -52,6 +54,7 @@ export class IncidentRecorderApp {
     this.populateCategories();
     this.loadSettingsIntoUi();
     this.applyInitialTemplates();
+    this.updateVerifyFieldVisibility();
     this.renderDrafts();
     this.renderHistory();
     this.wireEvents();
@@ -76,8 +79,8 @@ export class IncidentRecorderApp {
 
   populateCategories(preferred = this.settings.categoryId) {
     const select = $("newCategory");
-    const categoryId = resolveCategoryId(preferred) || defaultCategoryId();
-    select.innerHTML = TICKET_ROUTES.map((route) => `<option value="${route.id}">${escapeHtml(route.label)}</option>`).join("");
+    const categoryId = resolveCategoryId(preferred) || "";
+    select.innerHTML = `<option value="">-- Select Category --</option>${TICKET_ROUTES.map((route) => `<option value="${route.id}">${escapeHtml(route.label)}</option>`).join("")}`;
     select.value = categoryId;
     this.populateSubcategories(this.settings.subcategoryId);
   }
@@ -86,18 +89,20 @@ export class IncidentRecorderApp {
     const categoryId = $("newCategory").value;
     const route = getCategory(categoryId);
     const select = $("newSubcategory");
-    select.innerHTML = `<option value="">-- None --</option>${(route?.subcategories || []).map((sub) => `<option value="${sub.id}">${escapeHtml(sub.label)}</option>`).join("")}`;
+    select.innerHTML = `<option value="">-- Select Subcategory --</option>${(route?.subcategories || []).map((sub) => `<option value="${sub.id}">${escapeHtml(sub.label)}</option>`).join("")}`;
     const subcategoryId = resolveSubcategoryId(categoryId, preferred);
-    if (subcategoryId) select.value = subcategoryId;
+    select.value = subcategoryId || "";
   }
 
   loadSettingsIntoUi() {
     $("profileName").value = this.settings.name || "";
     $("deepgramTokenEndpoint").value = this.settings.deepgramTokenEndpoint || "";
-    const categoryId = resolveCategoryId(this.settings.categoryId) || defaultCategoryId();
+    const categoryId = resolveCategoryId(this.settings.categoryId) || "";
     $("newCategory").value = categoryId;
     this.populateSubcategories(this.settings.subcategoryId);
     this.voice.setTokenEndpoint(this.settings.deepgramTokenEndpoint || "");
+    this.voice.setProviderPreference(this.settings.voiceProvider || "auto");
+    $("voiceProviderSelect").value = this.voice.getProviderPreference();
     this.syncSettingsStatus();
   }
 
@@ -108,11 +113,14 @@ export class IncidentRecorderApp {
     this.renderDetectedSummary();
   }
 
-  recommendedTemplate(fields = this.readFields()) {
+  recommendedTemplate(fields = this.readFields(), analysis = this.lastAnalysis || {}) {
+    const categoryId = $("newCategory").value;
+    if (!categoryId) return "";
     return renderDetailedDescription({
-      categoryId: $("newCategory").value,
+      categoryId,
       subcategoryId: $("newSubcategory").value,
-      fields
+      fields,
+      analysis
     });
   }
 
@@ -132,17 +140,50 @@ export class IncidentRecorderApp {
     this.renderDetectedSummary();
   }
 
+  updateVerifyFieldVisibility() {
+    const categoryId = $("newCategory").value;
+    const visibleIds = new Set(verifyFieldIdsFor(categoryId));
+    $$('[data-detail-field]').forEach((label) => {
+      label.hidden = !visibleIds.has(label.dataset.detailField);
+    });
+    this.renderDetectedSummary();
+  }
+
   renderDetectedSummary() {
-    const fields = this.readFields();
-    const found = DETAIL_FIELDS.map(([id, label]) => ({ label, value: fields[id] })).filter((item) => item.value);
+    const categoryId = $("newCategory").value;
     const box = $("detectedSummary");
+    if (!categoryId) {
+      box.innerHTML = `<span>Select a Category to show its ticket fields.</span>`;
+      box.classList.remove("has-values");
+      return;
+    }
+    const visibleIds = new Set(verifyFieldIdsFor(categoryId));
+    const fields = this.readFields();
+    const found = DETAIL_FIELDS
+      .filter(([id]) => visibleIds.has(id))
+      .map(([id, label]) => ({ label, value: fields[id] }))
+      .filter((item) => item.value);
     if (!found.length) {
-      box.innerHTML = `<span>No details extracted yet.</span>`;
+      box.innerHTML = `<span>No details extracted yet for this Category.</span>`;
       box.classList.remove("has-values");
       return;
     }
     box.classList.add("has-values");
     box.innerHTML = found.map((item) => `<span class="detected-chip"><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.value)}</span>`).join("");
+  }
+
+  ensureRoutingSelected() {
+    if (!$("newCategory").value) {
+      this.showToast("Select a Category first.", "error");
+      $("newCategory").focus();
+      return false;
+    }
+    if (!$("newSubcategory").value) {
+      this.showToast("Select a Subcategory first.", "error");
+      $("newSubcategory").focus();
+      return false;
+    }
+    return true;
   }
 
   extractDetails({ notify = true } = {}) {
@@ -173,20 +214,45 @@ export class IncidentRecorderApp {
     const pause = $("pauseVoiceBtn");
     const stop = $("stopVoiceBtn");
     const dot = $("voiceDot");
+    const providerSelect = $("voiceProviderSelect");
     const active = state === "listening" || state === "reconnecting";
     start.disabled = active;
     pause.disabled = !active;
     stop.disabled = state === "stopped";
+    if (providerSelect) providerSelect.disabled = active;
     dot.classList.toggle("listening", active);
     dot.classList.toggle("ready", state !== "error");
   }
 
   syncVoiceProvider() {
     const configured = this.voice.isDeepgramConfigured();
-    $("voiceProviderBadge").textContent = configured ? "Deepgram Nova-3" : "Browser fallback";
+    const preference = this.voice.setProviderPreference(this.settings.voiceProvider || "auto");
+    const select = $("voiceProviderSelect");
+    if (select && document.activeElement !== select) select.value = preference;
+
+    if (preference === "browser") {
+      $("voiceProviderBadge").textContent = "Browser speech";
+      $("deepgramRecorderHint").textContent = "Browser speech mode is enabled. Starting voice notes will not request a Deepgram token or open a Deepgram transcription connection.";
+      return;
+    }
+    if (preference === "deepgram") {
+      $("voiceProviderBadge").textContent = configured ? "Deepgram Nova-3" : "Deepgram not configured";
+      $("deepgramRecorderHint").textContent = configured
+        ? "Deepgram Nova-3 is selected for transcription. Generate sends the completed Rough Notes to the same Worker for ticket analysis."
+        : "Deepgram is selected but not configured. Voice notes will fall back to browser speech recognition when available.";
+      return;
+    }
+    $("voiceProviderBadge").textContent = configured ? "Auto · Deepgram" : "Auto · Browser speech";
     $("deepgramRecorderHint").textContent = configured
-      ? "Deepgram captures the call. Generate sends the completed Rough Notes to your Cloudflare Worker for structured ticket analysis."
-      : "Configure the secure Cloudflare /token endpoint in Settings. Until then, supported browsers use their built-in speech recognizer.";
+      ? "Auto mode uses Deepgram when available and browser speech if Deepgram cannot start."
+      : "Auto mode uses browser speech recognition because Deepgram is not configured.";
+  }
+
+  saveVoiceProviderPreference() {
+    this.settings.voiceProvider = this.voice.setProviderPreference($("voiceProviderSelect").value);
+    saveSettings(this.settings);
+    this.syncVoiceProvider();
+    this.showToast(this.settings.voiceProvider === "browser" ? "Browser speech selected. Deepgram will not be used for recording." : "Transcription preference saved.");
   }
 
   async startVoice() {
@@ -206,6 +272,7 @@ export class IncidentRecorderApp {
     this.settings.categoryId = $("newCategory").value;
     this.settings.subcategoryId = $("newSubcategory").value;
     saveSettings(this.settings);
+    this.updateVerifyFieldVisibility();
     if (!this.dirty.detail) {
       $("detailedDescription").value = this.recommendedTemplate();
       $("templateNotice").hidden = true;
@@ -226,11 +293,17 @@ export class IncidentRecorderApp {
   }
 
   resetDetailedTemplate() {
-    $("detailedDescription").value = RESET_TEMPLATE;
+    if (!this.ensureRoutingSelected()) return;
+    $("templateChoiceDialog").showModal();
+  }
+
+  applyResetTemplate(family) {
+    $("detailedDescription").value = family === "gen2" ? GEN2_RESET_TEMPLATE : STANDARD_RESET_TEMPLATE;
     this.dirty.detail = true;
     $("templateNotice").hidden = true;
+    $("templateChoiceDialog").close();
     this.syncGeneratedOutput();
-    this.showToast("Original standard template restored.");
+    this.showToast(family === "gen2" ? "KeepStock Gen2 template restored." : "Standard template restored.");
   }
 
   resetWorkNotes() {
@@ -241,6 +314,7 @@ export class IncidentRecorderApp {
   }
 
   async generateTicket() {
+    if (!this.ensureRoutingSelected()) return null;
     const rawNotes = $("newRawNotes").value.trim();
     if (!rawNotes) {
       this.showToast("Add Rough Notes before generating the ticket.", "error");
@@ -280,6 +354,8 @@ export class IncidentRecorderApp {
       console.warn("Workers AI unavailable; local analyzer used", error);
       this.showToast(`Cloudflare AI unavailable; local fallback used. ${error.message || ""}`.trim(), "warning");
     }
+
+    this.lastAnalysis = analysis;
 
     if (!fields.accountNumber && analysis.accountNumber) {
       fields.accountNumber = analysis.accountNumber;
@@ -343,11 +419,13 @@ export class IncidentRecorderApp {
   }
 
   restoreFormData(data = {}) {
+    this.lastAnalysis = null;
     const categoryId = resolveCategoryId(data.categoryId || data.category) || defaultCategoryId();
     $("newCategory").value = categoryId;
     this.populateSubcategories(data.subcategoryId || data.subcategory);
     $("newRawNotes").value = data.roughNotes || data.newRawNotes || "";
     this.writeFields(data.fields || data);
+    this.updateVerifyFieldVisibility();
     $("newTitle").value = data.shortDescription || data.newTitle || "";
     $("detailedDescription").value = data.detailedDescription || this.recommendedTemplate();
     $("workNotes").value = data.workNotes || WORK_NOTES_TEMPLATE;
@@ -395,6 +473,7 @@ export class IncidentRecorderApp {
   }
 
   async saveToHistory() {
+    if (!this.ensureRoutingSelected()) return;
     if (!this.generatedOnce && !$("newTitle").value.trim()) await this.generateTicket();
     if (!$("newTitle").value.trim()) return;
     this.syncGeneratedOutput();
@@ -439,7 +518,12 @@ export class IncidentRecorderApp {
     this.populateCategories(this.settings.categoryId);
     this.dirty = { short: false, detail: false, work: false };
     this.generatedOnce = false;
+    this.lastAnalysis = null;
+    this.voice.setProviderPreference(this.settings.voiceProvider || "auto");
+    $("voiceProviderSelect").value = this.voice.getProviderPreference();
     this.applyInitialTemplates();
+    this.updateVerifyFieldVisibility();
+    this.syncVoiceProvider();
     this.setGenerationStatus("");
     this.setSaveStatus("Not saved");
     this.showToast("Workspace reset.");
@@ -597,6 +681,10 @@ export class IncidentRecorderApp {
     $("startVoiceBtn").addEventListener("click", () => this.startVoice());
     $("pauseVoiceBtn").addEventListener("click", () => this.pauseVoice());
     $("stopVoiceBtn").addEventListener("click", () => this.stopVoice());
+    $("voiceProviderSelect").addEventListener("change", () => this.saveVoiceProviderPreference());
+
+    $("chooseStandardTemplateBtn").addEventListener("click", () => this.applyResetTemplate("standard"));
+    $("chooseGen2TemplateBtn").addEventListener("click", () => this.applyResetTemplate("gen2"));
 
     $("saveProfileBtn").addEventListener("click", () => this.saveProfile());
     $("saveEndpointBtn").addEventListener("click", () => this.saveEndpoint());

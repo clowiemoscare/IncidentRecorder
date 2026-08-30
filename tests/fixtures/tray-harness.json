@@ -1,0 +1,17 @@
+{
+  "name": "tray harness parts request",
+  "categoryId": "keepstock_onsite",
+  "subcategoryId": "onsite_mrf_required",
+  "roughNotes": "Thank you for calling KeepStock support. Account number is 0888512630. You need assistance on ordering a new tray harness. Do you have the link to submit the parts request? I can send you the link on Teams. I just sent you the link. The part number for the tray harness is EL950.",
+  "analysis": {
+    "issueSummary": "Ordering new tray harness",
+    "troubleshootingSteps": [
+      "Discussed ordering a new tray harness.",
+      "Identified part number EL950 for the tray harness.",
+      "Sent the link to submit the parts request via Teams."
+    ],
+    "resolution": "Provided the parts-request link via Teams and supplied tray harness part number EL950.",
+    "conditionalNextSteps": [],
+    "resolved": true
+  }
+}

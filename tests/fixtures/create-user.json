@@ -1,0 +1,18 @@
+{
+  "name": "KeepStock create user training",
+  "categoryId": "keepstock_onsite",
+  "subcategoryId": "onsite_web_user_management",
+  "analysis": {
+    "issueSummary": "Create new KeepStock Web user",
+    "troubleshootingSteps": [
+      "Logged into Grainger.com and opened KeepStock.",
+      "Opened User & Group Management.",
+      "Selected Users and Create User.",
+      "Guided the rep through the required user prompts.",
+      "Assigned the required programs to the new user's profile."
+    ],
+    "resolution": "Rep was trained on creating a new user in KeepStock Web and assigning programs to the user's profile.",
+    "conditionalNextSteps": [],
+    "resolved": true
+  }
+}

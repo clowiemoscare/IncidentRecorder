@@ -29,18 +29,27 @@
       </div>
 
       <div class="routing-strip">
-        <label><span>Category</span><select id="newCategory"></select></label>
-        <label><span>Subcategory</span><select id="newSubcategory"></select></label>
+        <label><span><b class="required-mark">*</b> Category</span><select id="newCategory" required aria-required="true"></select></label>
+        <label><span><b class="required-mark">*</b> Subcategory</span><select id="newSubcategory" required aria-required="true"></select></label>
       </div>
 
       <div class="workspace-grid">
         <div class="workspace-main">
           <form id="newIncidentForm" autocomplete="off" onsubmit="return false;">
             <section class="panel" id="captureNotes">
-              <div class="section-heading"><div><span class="step-number">1</span><div><h2>Capture call notes</h2><p>Deepgram captures finalized speech into Rough Notes. Rough Notes are never rewritten by ticket generation.</p></div></div><span class="provider-badge" id="voiceProviderBadge">Browser fallback</span></div>
+              <div class="section-heading"><div><span class="step-number">1</span><div><h2>Capture call notes</h2><p>Use Deepgram or browser speech recognition. Rough Notes are never rewritten by ticket generation.</p></div></div><span class="provider-badge" id="voiceProviderBadge">Browser speech</span></div>
 
               <div class="voice-card">
-                <div class="voice-state"><span class="voice-dot ready" id="voiceDot"></span><span id="voiceStatus">Voice notes are ready.</span></div>
+                <div class="voice-toolbar">
+                  <div class="voice-state"><span class="voice-dot ready" id="voiceDot"></span><span id="voiceStatus">Voice notes are ready.</span></div>
+                  <label class="provider-select-label">Transcription
+                    <select id="voiceProviderSelect">
+                      <option value="auto">Auto</option>
+                      <option value="browser">Browser speech (no Deepgram)</option>
+                      <option value="deepgram">Deepgram Nova-3</option>
+                    </select>
+                  </label>
+                </div>
                 <div class="button-row">
                   <button class="button primary" id="startVoiceBtn" type="button">Start voice notes</button>
                   <button class="button" id="pauseVoiceBtn" type="button" disabled>Pause</button>
@@ -52,7 +61,7 @@
               </div>
 
               <label class="field-label">Rough Notes
-                <textarea id="newRawNotes" rows="11"></textarea>
+                <textarea id="newRawNotes" rows="4"></textarea>
               </label>
               <div class="button-row">
                 <button class="button" id="extractDetailsBtn" type="button">Extract details</button>
@@ -63,31 +72,53 @@
             </section>
 
             <section class="panel" id="verifyDetails">
-              <div class="section-heading"><div><span class="step-number">2</span><div><h2>Verify extracted details</h2><p>Values found in Rough Notes fill blank fields only. Manual values are never replaced automatically.</p></div></div></div>
-              <div class="detected-summary" id="detectedSummary"><span>No details extracted yet.</span></div>
-              <div class="field-grid">
-                <label>Crib/Program id<input id="cribProgramId" /></label>
-                <label>Program name<input id="programName" /></label>
-                <label>Company name<input id="companyName" /></label>
-                <label>Site ID<input id="siteId" /></label>
-                <label>Acct #<input id="accountNumber" inputmode="numeric" /></label>
-                <label>Software Version<input id="softwareVersion" /></label>
-                <label>Device ID (Affected)<input id="deviceId" /></label>
-                <label>Machine Serial Number(s)<input id="machineSerial" /></label>
-                <label>Cradlepoint Serial Number<input id="cradlepointSerial" /></label>
-                <label>IMEI<input id="imei" inputmode="numeric" /></label>
-                <label>Carrier<input id="carrier" /></label>
-                <label>Badge Reader<input id="badgeReader" /></label>
-                <label>Model<input id="model" /></label>
-                <label>Phone Model<input id="phoneModel" /></label>
-                <label>Phone Software Version<input id="phoneSoftwareVersion" /></label>
-                <label>Application<input id="application" /></label>
-                <label>Application Version<input id="applicationVersion" /></label>
-                <label>Time issue occurred<input id="timeIssueOccurred" /></label>
-                <label>Order #<input id="orderNumber" /></label>
-                <label>eConnections Status<input id="econnectionsStatus" /></label>
-                <label>SAP Status/EBU Number<input id="sapStatusEbu" /></label>
-                <label>Does user want order reposted<select id="orderReposted"><option value=""></option><option>Yes</option><option>No</option></select></label>
+              <div class="section-heading"><div><span class="step-number">2</span><div><h2>Verify extracted details</h2><p>Only fields used by the selected Category are shown. Values found in Rough Notes fill blank fields only.</p></div></div></div>
+              <div class="detected-summary" id="detectedSummary"><span>Select a Category to show its ticket fields.</span></div>
+              <div class="field-grid" id="verifyFieldGrid">
+                <label data-detail-field="cribProgramId">Crib/Program id<input id="cribProgramId" /></label>
+                <label data-detail-field="programName">Program name<input id="programName" /></label>
+                <label data-detail-field="companyName">Company name<input id="companyName" /></label>
+                <label data-detail-field="siteId">Site ID (If Applicable)<input id="siteId" /></label>
+                <label data-detail-field="accountNumber">Acct # / Account Number<input id="accountNumber" inputmode="numeric" /></label>
+                <label data-detail-field="softwareVersion">Software Version<input id="softwareVersion" /></label>
+                <label data-detail-field="deviceId">Device ID (Affected)<input id="deviceId" /></label>
+                <label data-detail-field="machineSerial">Machine Serial Number(s)<input id="machineSerial" /></label>
+                <label data-detail-field="cradlepointSerial">Cradlepoint Serial Number<input id="cradlepointSerial" /></label>
+                <label data-detail-field="imei">IMEI<input id="imei" inputmode="numeric" /></label>
+                <label data-detail-field="carrier">Carrier<input id="carrier" /></label>
+                <label data-detail-field="badgeReader">Badge Reader<input id="badgeReader" /></label>
+                <label data-detail-field="model">Model<input id="model" /></label>
+                <label data-detail-field="phoneModel">Phone Model<input id="phoneModel" /></label>
+                <label data-detail-field="phoneSoftwareVersion">Phone Software Version<input id="phoneSoftwareVersion" /></label>
+                <label data-detail-field="application">Application<input id="application" /></label>
+                <label data-detail-field="applicationVersion">Application Version<input id="applicationVersion" /></label>
+                <label data-detail-field="timeIssueOccurred">Time issue occurred / Time of Issue<input id="timeIssueOccurred" /></label>
+                <label data-detail-field="orderNumber">Order #<input id="orderNumber" /></label>
+                <label data-detail-field="econnectionsStatus">eConnections Status<input id="econnectionsStatus" /></label>
+                <label data-detail-field="sapStatusEbu">SAP Status/EBU Number<input id="sapStatusEbu" /></label>
+                <label data-detail-field="orderReposted">Does user want order reposted<select id="orderReposted"><option value=""></option><option>Yes</option><option>No</option></select></label>
+
+                <label data-detail-field="siteName">Site Name<input id="siteName" /></label>
+                <label data-detail-field="currentTask">Current Task<input id="currentTask" /></label>
+                <label data-detail-field="screenshot">Screenshot<input id="screenshot" /></label>
+                <label data-detail-field="iosVersion">IOS Version<input id="iosVersion" /></label>
+                <label data-detail-field="appVersion">App Version<input id="appVersion" /></label>
+                <label data-detail-field="customerAdminName">Customer Admin Name<input id="customerAdminName" /></label>
+                <label data-detail-field="customerAdminEmail">Customer Admin Email<input id="customerAdminEmail" type="email" /></label>
+                <label data-detail-field="browser">Browser<input id="browser" /></label>
+                <label data-detail-field="storageUnit">Storage Unit<input id="storageUnit" /></label>
+                <label data-detail-field="rootCause">Root Cause<input id="rootCause" /></label>
+                <label data-detail-field="issueType">Issue Type
+                  <select id="issueType">
+                    <option value=""></option>
+                    <option>Data Load Failure</option>
+                    <option>Data Maintenance</option>
+                    <option>Knowledge Gap</option>
+                    <option>System</option>
+                    <option>Hardware</option>
+                  </select>
+                </label>
+                <label class="span-2" data-detail-field="whyDataChanges">Why are we making changes to the data<textarea id="whyDataChanges" rows="2"></textarea></label>
               </div>
             </section>
 
@@ -97,9 +128,9 @@
               <label class="field-label">Short Description<input id="newTitle" maxlength="180" /></label>
               <div class="field-actions single-action"><button class="button small" type="button" data-copy-target="short">Copy short description</button></div>
 
-              <label class="field-label">Detailed Description<textarea id="detailedDescription" rows="17" maxlength="6000"></textarea></label>
+              <label class="field-label">Detailed Description<textarea id="detailedDescription" rows="17" maxlength="8000"></textarea></label>
               <div class="template-notice" id="templateNotice" hidden>Routing changed while this field contains manual edits. Your edits were preserved. <button type="button" id="applyRoutingTemplateBtn">Apply routing template</button></div>
-              <div class="field-actions"><button class="button small" id="resetDetailedBtn" type="button">Reset original template</button><button class="button small" type="button" data-copy-target="detailed">Copy detailed description</button></div>
+              <div class="field-actions"><button class="button small" id="resetDetailedBtn" type="button">Reset template</button><button class="button small" type="button" data-copy-target="detailed">Copy detailed description</button></div>
 
               <label class="field-label">Work Notes<textarea id="workNotes" rows="13" maxlength="6000"></textarea></label>
               <div class="field-actions"><button class="button small" id="resetWorkBtn" type="button">Reset Work Notes</button><button class="button small" type="button" data-copy-target="work">Copy Work Notes</button></div>
@@ -146,12 +177,12 @@
 
         <section class="panel settings-card wide">
           <h2>Deepgram + Cloudflare Workers AI</h2>
-          <p>One Cloudflare Worker provides temporary Deepgram tokens at <code>/token</code> and structured ticket analysis at <code>/analyze</code>.</p>
+          <p>The Recorder can use browser speech without Deepgram. The Worker endpoint is still used for Cloudflare AI ticket analysis when configured.</p>
           <label>Secure Worker token endpoint<input id="deepgramTokenEndpoint" type="url" placeholder="https://your-worker.your-subdomain.workers.dev/token" autocomplete="off" /></label>
           <div class="button-row"><button class="button primary" id="saveEndpointBtn" type="button">Save endpoint</button><button class="button" id="testDeepgramBtn" type="button">Test Deepgram</button><button class="button" id="testWorkersAiBtn" type="button">Test Ticket AI</button></div>
           <div class="status-line"><strong>Deepgram:</strong> <span id="deepgramSettingsStatus">Not configured</span></div>
           <div class="status-line"><strong>Workers AI:</strong> <span id="workersAiSettingsStatus">Save the Worker endpoint first</span></div>
-          <p class="muted">Permanent Deepgram credentials belong only in the Cloudflare Worker secret. Do not put them in GitHub or this page.</p>
+          <p class="muted">Selecting “Browser speech (no Deepgram)” prevents the Recorder from requesting a Deepgram token or opening a Deepgram transcription connection. Browser speech recognition availability and processing depend on the browser.</p>
         </section>
 
         <section class="panel settings-card wide">
@@ -162,6 +193,18 @@
       </div>
     </section>
   </main>
+
+  <dialog class="template-choice-dialog" id="templateChoiceDialog" aria-labelledby="templateChoiceTitle">
+    <form method="dialog" class="template-choice-card">
+      <h2 id="templateChoiceTitle">Choose template to reset</h2>
+      <p>Category and Subcategory are selected. Which full template do you want to restore?</p>
+      <div class="template-choice-actions">
+        <button class="button primary" id="chooseStandardTemplateBtn" type="button">Standard template</button>
+        <button class="button" id="chooseGen2TemplateBtn" type="button">KeepStock Gen2 template</button>
+        <button class="button" value="cancel" type="submit">Cancel</button>
+      </div>
+    </form>
+  </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="deepgram.js"></script>

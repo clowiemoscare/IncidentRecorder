@@ -1,0 +1,6 @@
+{
+  "name": "machine communication",
+  "categoryId": "keepstock_seaga_cm",
+  "subcategoryId": "machine_main_harness",
+  "roughNotes": "We are troubleshooting a machine issue. Initialization of the machine failed. Unable to communicate to auxiliary locker. Check for power and make sure both machines got power. Check the serial cable or Molex cable. After checking the cable connections, we're power cycling the PC. After power cycling the PC we got back to the login screen. After logging in we confirmed that we resolved the issue by power cycling the PC and reseating the cable connections."
+}

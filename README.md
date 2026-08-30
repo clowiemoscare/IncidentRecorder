@@ -1,102 +1,59 @@
-# IncidentRecorder - Deepgram + Cloudflare Workers AI
+# IncidentRecorder v2.1
 
-This build uses **Deepgram Nova-3** for live voice transcription and **Cloudflare Workers AI** for understanding the completed Rough Notes when you click **Generate clean ticket**.
+IncidentRecorder is a focused support-call documentation tool that runs as a static GitHub Pages site.
 
-The AI does not control the ServiceNow template. IncidentRecorder still owns Category/Subcategory, Detailed Description formatting, manual fields, drafts, and the special Onsite five-field template.
+## Runtime architecture
 
-## Files to upload to the GitHub repository root
+1. The Recorder can transcribe with **Deepgram Nova-3** or **Browser speech (no Deepgram)**. Auto mode keeps the original fallback behavior.
+2. Final transcript segments are appended to Rough Notes. Rough Notes are never rewritten by ticket generation.
+3. When Generate is clicked, the browser sends the completed Rough Notes to the Cloudflare Worker when a Worker endpoint is configured.
+4. Cloudflare Workers AI returns structured issue/troubleshooting/resolution data.
+5. IncidentRecorder applies deterministic local ticket templates based on Category/Subcategory and builds the final ticket.
+6. If Workers AI is unavailable, the local action analyzer is used automatically.
 
-- `index.html`
-- `styles.css`
-- `app.js`
-- `deepgram.js`
-- `README.md`
+Permanent Deepgram credentials are never stored in GitHub or browser JavaScript. In Browser speech mode, the Recorder does not request a Deepgram token or open a Deepgram transcription connection.
 
-The `deepgram-worker` folder contains the updated Cloudflare Worker and setup instructions. It contains no API keys.
+## v2.1 routing and templates
 
-## What happens during a call
+- Category and Subcategory are explicit required routing fields for Generate and Reset Template.
+- Reset Template asks whether to restore the full **Standard** or full **KeepStock Gen2** master template.
+- Verify extracted details only shows fields used by the selected Category.
+- `Keepstock - Onsite` and `Keepstock Canada - Onsite` use identity fields only.
+- `Keepstock - Seaga / CM` uses identity + machine fields.
+- `Keepstock - GCOM App` uses identity + phone/application fields.
+- `Keepstock - CM - PC/Data` and `Keepstock - Seaga - PC/Data` use identity + machine + Cradlepoint/network + badge reader fields.
+- Added `Keepstock Gen2 - Onsite Mobile App`.
+- Added `Keepstock Gen2 - Web Customer`.
+- Added `Keepstock Gen2 - GVEND 3`.
+- Gen2 generated templates insert AI-derived Issue, Troubleshooting, and Resolution into the Gen2 closing section while leaving Root Cause, Issue Type, and data-change reason under user control.
 
-```text
-Microphone
-   -> Deepgram Nova-3
-   -> complete Rough Notes
-   -> Generate clean ticket
-   -> Cloudflare Workers AI
-   -> structured issue / troubleshooting / resolution analysis
-   -> IncidentRecorder ServiceNow formatting
+## Project structure
+
+- `index.html` - focused Recorder / History / Settings shell.
+- `deepgram.js` - Nova-3 streaming integration.
+- `styles/` - base, recorder, and settings styles.
+- `src/config/ticket-routing.js` - stable routing IDs, labels, template mapping, Verify-field mapping, and legacy route migration.
+- `src/state/storage.js` - versioned browser settings/drafts/history with quota handling and migration.
+- `src/recorder/voice.js` - Deepgram, explicit browser-speech mode, and automatic fallback orchestration.
+- `src/ticket/extractor.js` - pure field extraction from Rough Notes, including Standard and Gen2 fields.
+- `src/ticket/local-analyzer.js` - local high-recall fallback analysis.
+- `src/ticket/templates.js` - deterministic Standard and Gen2 Detailed Description templates.
+- `src/ticket/ai-client.js` - Cloudflare `/analyze` client.
+- `src/ticket/generator.js` - pure ticket generation with no DOM access.
+- `src/ui/app.js` - browser UI orchestration only.
+- `tests/` - regression tests built from real support-call scenarios and UI contracts.
+- `cloudflare/worker.mjs` - Deepgram temporary tokens + Workers AI analysis.
+
+## Tests
+
+Requires Node.js 20+.
+
+```bash
+npm test
 ```
 
-### AI documentation rules
+The v2.1 regression suite covers legacy workflows plus category/template routing, Gen2 templates, dynamic Verify fields, required routing, Rough Notes sizing, and explicit Browser speech mode that bypasses Deepgram.
 
-Workers AI is instructed that only Chloe's support-agent voice is recorded. It must:
+## Browser data
 
-- scan the entire Rough Notes transcript;
-- keep every meaningful check, finding, lookup, instruction, configuration change, restart/reset, test, retest, training step, and verification in chronological order;
-- remove greetings, filler, holds, repetition, and closings;
-- never invent caller responses or actions;
-- keep conditional future guidance separate from actions actually completed;
-- never use an `if it still...` fallback as the resolution unless the notes later confirm it happened;
-- produce a resolution tied to the actual fix or training outcome;
-- return an empty resolution if the call does not confirm an outcome.
-
-IncidentRecorder uses Cloudflare's structured JSON response rather than asking the model to write the final ticket free-form.
-
-## Fallback behavior
-
-If Workers AI cannot be reached, the AI binding is missing, the daily free allocation is exhausted, or the model returns an error, **Generate clean ticket still works**. The app automatically uses the local high-recall troubleshooting action ledger instead.
-
-Rough Notes are never rewritten by either generator.
-
-## Cloudflare setup change required
-
-If Deepgram is already working, keep your existing Worker URL and Deepgram secret. You only need to:
-
-1. replace the Worker code with the new `deepgram-worker/worker.mjs`;
-2. add a Workers AI binding named exactly `AI`;
-3. redeploy;
-4. open IncidentRecorder **Settings > Deepgram + Cloudflare AI** and click **Test Ticket AI**.
-
-See `deepgram-worker/README.md` for the full steps.
-
-## Detailed Description rule retained
-
-For `Keepstock - Onsite` and `Keepstock Canada - Onsite`, Detailed Description remains exactly:
-
-```text
-Crib/Program id:
-Program name:
-Company name:
-Site ID (If Applicable):
-Acct #:
-```
-
-Blank values remain blank and manually entered values are not overwritten by the AI analysis.
-
-## Privacy
-
-- Microphone audio is sent to Deepgram only while voice notes are active.
-- Rough Notes are sent to your Cloudflare Worker only when you click Generate (or Test Ticket AI).
-- The browser does not contain your permanent Deepgram API key.
-- Drafts, manual ticket fields, and saved incident records remain stored in the browser unless you explicitly export/copy them.
-
-## Hosting
-
-Use GitHub Pages or another HTTPS host. Current Chrome or Edge is recommended for microphone access.
-
-
-## Template routing update
-
-- Quick Resolution and Required Ticket Info have been removed from New Incident.
-- Short Description format: `Acct #: <account> | issue - <AI issue from Rough Notes>`.
-- Keepstock - Onsite and Keepstock Canada - Onsite use the identity-only template.
-- Keepstock - Seaga / CM uses the machine template.
-- Keepstock - CM - PC/Data + Network issue - Cellular adds Cradlepoint / IMEI / Carrier.
-- Keepstock - CM - PC/Data + Existing/New badge reader adds Badge Reader / Model.
-- All other routing uses the full standard template.
-- Reset template restores the exact original reset-template spacing and field set.
-
-### Resolution fulfillment behavior
-Generate Ticket treats fulfilled support requests as completed outcomes even when the transcript does not literally say "resolved". A completed parts-information call can therefore resolve to the link/part number actually provided rather than leaving Resolution blank.
-
-### Resolution fulfillment behavior
-Generate Ticket treats fulfilled support requests as completed outcomes even when the transcript does not literally say "resolved". A completed parts-information call can therefore resolve to the link/part number actually provided rather than leaving Resolution blank.
+v2.1 continues using the v2 versioned local-storage keys, so current v2 settings, drafts, and history remain compatible. The new transcription-provider preference defaults to Auto when it does not already exist.

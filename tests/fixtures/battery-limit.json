@@ -1,0 +1,23 @@
+{
+  "name": "battery dispensing limit conflict",
+  "categoryId": "keepstock_onsite",
+  "subcategoryId": "onsite_web_groups",
+  "analysis": {
+    "issueSummary": "Battery dispensing limit conflict",
+    "troubleshootingSteps": [
+      "Pulled up Crib/Program 218-126 for Joya corporate HQ.",
+      "Confirmed the Maintenance user group.",
+      "Confirmed the battery pack contains 24 each.",
+      "Reviewed item 5LE25.",
+      "Confirmed the program dispensing limit was set to 4 each.",
+      "Identified a conflict between the user-group limit of 1 per week and program limit of 4.",
+      "Advised removing and re-adding item 5LE25 with a user-group limit of 4 per week.",
+      "Confirmed the weekly limit should be 4.",
+      "Explained that the weekly limit resets after one week.",
+      "Advised retesting dispensing after the change."
+    ],
+    "resolution": "Identified the dispensing-limit conflict and instructed the rep to update the user-group limit to 4 per week to match the program, then retest.",
+    "conditionalNextSteps": [],
+    "resolved": true
+  }
+}

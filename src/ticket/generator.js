@@ -39,7 +39,7 @@ export function generateTicketModel({
   const resolvedFields = { ...fields, accountNumber };
   const generated = {
     shortDescription: buildShortDescription({ accountNumber, issueSummary: analysis?.issueSummary }),
-    detailedDescription: renderDetailedDescription({ categoryId, subcategoryId, fields: resolvedFields }),
+    detailedDescription: renderDetailedDescription({ categoryId, subcategoryId, fields: resolvedFields, analysis }),
     workNotes: buildWorkNotes({ issueLabel: subcategoryLabel, analysis })
   };
   const ticket = {

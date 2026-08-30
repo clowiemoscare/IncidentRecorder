@@ -1,10 +1,23 @@
 const pair = (id, label, template = null) => ({ id, label, ...(template ? { template } : {}) });
 
+const IDENTITY_FIELDS = ["cribProgramId", "programName", "companyName", "siteId", "accountNumber"];
+const MACHINE_FIELDS = [...IDENTITY_FIELDS, "softwareVersion", "deviceId", "machineSerial"];
+const PC_DATA_FIELDS = [...MACHINE_FIELDS, "cradlepointSerial", "imei", "carrier", "badgeReader", "model"];
+const GCOM_FIELDS = [...IDENTITY_FIELDS, "phoneModel", "phoneSoftwareVersion", "application", "applicationVersion", "timeIssueOccurred"];
+const STANDARD_FIELDS = [
+  ...PC_DATA_FIELDS,
+  "phoneModel", "phoneSoftwareVersion", "application", "applicationVersion", "timeIssueOccurred",
+  "orderNumber", "econnectionsStatus", "sapStatusEbu", "orderReposted"
+];
+const GEN2_CLOSE_FIELDS = ["rootCause", "issueType", "whyDataChanges"];
+
 export const TICKET_ROUTES = [
   {
     id: "keepstock_mobilecast",
     label: "Keepstock - MobileCast",
     template: "standard",
+    templateFamily: "standard",
+    verifyFields: STANDARD_FIELDS,
     subcategories: [
       pair("mobilecast_access_login", "Access/login"),
       pair("mobilecast_routing", "Routing"),
@@ -13,8 +26,10 @@ export const TICKET_ROUTES = [
   },
   {
     id: "keepstock_gcom_mobile_app",
-    label: "Keepstock - GCOM Mobile App",
-    template: "standard",
+    label: "Keepstock - GCOM App",
+    template: "gcom_app",
+    templateFamily: "standard",
+    verifyFields: GCOM_FIELDS,
     subcategories: [
       pair("gcom_access_login", "access/login"),
       pair("gcom_barcode_label", "Barcode label"),
@@ -29,6 +44,8 @@ export const TICKET_ROUTES = [
     id: "keepstock_canada_onsite",
     label: "Keepstock Canada - Onsite",
     template: "onsite",
+    templateFamily: "standard",
+    verifyFields: IDENTITY_FIELDS,
     subcategories: [
       pair("canada_access_login", "Access/Login"),
       pair("canada_cs_software", "CS Software"),
@@ -46,6 +63,8 @@ export const TICKET_ROUTES = [
     id: "keepstock_seaga_cm",
     label: "Keepstock - Seaga / CM",
     template: "machine",
+    templateFamily: "standard",
+    verifyFields: MACHINE_FIELDS,
     subcategories: [
       pair("machine_drop_sensor", "Hardware issue: - Drop sensor"),
       pair("machine_lightning", "Hardware issue: - lightning"),
@@ -67,17 +86,19 @@ export const TICKET_ROUTES = [
   {
     id: "keepstock_cm_pc_data",
     label: "Keepstock - CM - PC/Data",
-    template: "standard",
+    template: "pc_data",
+    templateFamily: "standard",
+    verifyFields: PC_DATA_FIELDS,
     subcategories: [
       pair("cm_data_atr", "Data issue ATR setting"),
       pair("cm_craftcodes_uda", "craftcodes/uda"),
       pair("cm_item_data", "item data"),
       pair("cm_user_login", "data issue-user/login"),
       pair("cm_comports", "hardware issue - ComPorts"),
-      pair("cm_badge_existing", "hardware issue - Existing badge reader", "badge"),
-      pair("cm_badge_new", "hardware issue - New badge reader", "badge"),
+      pair("cm_badge_existing", "hardware issue - Existing badge reader"),
+      pair("cm_badge_new", "hardware issue - New badge reader"),
       pair("cm_touchscreen", "hardware issue - Touchscreen"),
-      pair("cm_network_cellular", "Network issue - Cellular", "cellular"),
+      pair("cm_network_cellular", "Network issue - Cellular"),
       pair("cm_network_customer", "Network issue - Customer network"),
       pair("cm_reporting_po", "reporting-PO issue"),
       pair("cm_software_issue", "Software issue"),
@@ -87,7 +108,9 @@ export const TICKET_ROUTES = [
   {
     id: "keepstock_seaga_pc_data",
     label: "Keepstock - Seaga - PC/Data",
-    template: "standard",
+    template: "pc_data",
+    templateFamily: "standard",
+    verifyFields: PC_DATA_FIELDS,
     subcategories: [
       pair("seaga_data_atr", "Data issue ATR setting"),
       pair("seaga_craftcodes_uda", "craftcodes/uda"),
@@ -108,6 +131,8 @@ export const TICKET_ROUTES = [
     id: "keepstock_onsite",
     label: "Keepstock - Onsite",
     template: "onsite",
+    templateFamily: "standard",
+    verifyFields: IDENTITY_FIELDS,
     subcategories: [
       pair("onsite_email_notification", "Email notification"),
       pair("onsite_drop_call", "Drop call-immediately"),
@@ -133,6 +158,30 @@ export const TICKET_ROUTES = [
       pair("onsite_parts_assistance", "Parts Assistance"),
       pair("onsite_other", "other")
     ]
+  },
+  {
+    id: "keepstock_gen2_onsite_mobile_app",
+    label: "Keepstock Gen2 - Onsite Mobile App",
+    template: "gen2_onsite_mobile_app",
+    templateFamily: "gen2",
+    verifyFields: ["siteName", "accountNumber", "currentTask", "timeIssueOccurred", "screenshot", "iosVersion", "appVersion", "deviceId", ...GEN2_CLOSE_FIELDS],
+    subcategories: [pair("gen2_onsite_mobile_other", "other")]
+  },
+  {
+    id: "keepstock_gen2_web_customer",
+    label: "Keepstock Gen2 - Web Customer",
+    template: "gen2_web_customer",
+    templateFamily: "gen2",
+    verifyFields: ["siteName", "accountNumber", "customerAdminName", "customerAdminEmail", "browser", "timeIssueOccurred", "screenshot", ...GEN2_CLOSE_FIELDS],
+    subcategories: [pair("gen2_web_customer_other", "other")]
+  },
+  {
+    id: "keepstock_gen2_gvend3",
+    label: "Keepstock Gen2 - GVEND 3",
+    template: "gen2_gvend3",
+    templateFamily: "gen2",
+    verifyFields: ["siteName", "accountNumber", "storageUnit", "timeIssueOccurred", "softwareVersion", "screenshot", "deviceId", "customerAdminName", "customerAdminEmail", "browser", ...GEN2_CLOSE_FIELDS],
+    subcategories: [pair("gen2_gvend3_other", "other")]
   }
 ];
 
@@ -141,7 +190,8 @@ const LEGACY_CATEGORY_MAP = new Map([
   ["keepstock - cm - locker", "keepstock_seaga_cm"],
   ["keepstock - cm - carousel", "keepstock_seaga_cm"],
   ["keepstock - seaga - coil", "keepstock_seaga_cm"],
-  ["keepstock - seaga - locker", "keepstock_seaga_cm"]
+  ["keepstock - seaga - locker", "keepstock_seaga_cm"],
+  ["keepstock - gcom mobile app", "keepstock_gcom_mobile_app"]
 ]);
 
 const normalize = (value) => String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -168,6 +218,14 @@ export function templateKindFor(categoryId, subcategoryId) {
   return getSubcategory(categoryId, subcategoryId)?.template || category.template || "standard";
 }
 
+export function templateFamilyFor(categoryId) {
+  return getCategory(categoryId)?.templateFamily || "standard";
+}
+
+export function verifyFieldIdsFor(categoryId) {
+  return [...(getCategory(categoryId)?.verifyFields || [])];
+}
+
 export function resolveCategoryId(value) {
   if (!value) return "";
   if (getCategory(value)) return value;
@@ -186,5 +244,5 @@ export function resolveSubcategoryId(categoryId, value) {
 }
 
 export function defaultCategoryId() {
-  return "keepstock_seaga_pc_data";
+  return "";
 }

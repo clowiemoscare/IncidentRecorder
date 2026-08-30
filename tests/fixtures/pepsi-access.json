@@ -1,0 +1,6 @@
+{
+  "name": "KeepStock web permissions",
+  "categoryId": "keepstock_onsite",
+  "subcategoryId": "onsite_web_access",
+  "roughNotes": "Account number 0872093141. He is only a guest user with access to the vending machine. Go to KeepStock Web, go to his profile, update his role to an admin. Under systems it needs to be Vending and Inventory Management and KeepStock Web Admin. Save it. Have the customer log out, log back into Grainger.com, click on KeepStock, and he should be able to access KeepStock Web. If he is still unable to access and it still asks him for a KeepStock user ID and password, then the customer needs to do a password reset and can call us back for assistance."
+}

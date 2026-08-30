@@ -11,6 +11,8 @@ export class VoiceController {
     this.restartAttempts = 0;
     this.pendingInterim = "";
     this.tokenEndpoint = "";
+    this.providerPreference = "auto";
+    this.activeProvider = "";
   }
 
   deepgram() { return window.IncidentRecorderDeepgram || null; }
@@ -20,9 +22,22 @@ export class VoiceController {
     return this.deepgram()?.setTokenEndpoint(this.tokenEndpoint) || "";
   }
 
+  setProviderPreference(preference = "auto") {
+    const normalized = ["auto", "browser", "deepgram"].includes(preference) ? preference : "auto";
+    this.providerPreference = normalized;
+    return normalized;
+  }
+
+  getProviderPreference() { return this.providerPreference; }
+  getActiveProvider() { return this.activeProvider; }
+
   isDeepgramConfigured() {
     const dg = this.deepgram();
     return Boolean(dg && this.tokenEndpoint && dg.setTokenEndpoint(this.tokenEndpoint));
+  }
+
+  isBrowserAvailable() {
+    return Boolean((window.SpeechRecognition || window.webkitSpeechRecognition) && !this.isLocalFile());
   }
 
   isLocalFile() { return window.location.protocol === "file:"; }
@@ -61,7 +76,7 @@ export class VoiceController {
     this.clearRestartTimer();
     const delay = Math.min(250 + (this.restartAttempts * 250), 1500);
     this.emit("onState", "reconnecting");
-    this.emit("onStatus", `Browser voice recognition reconnecting (${reason}). Only Stop ends voice notes.`);
+    this.emit("onStatus", `Browser speech recognition reconnecting (${reason}). Only Stop ends voice notes.`);
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
       if (!this.shouldRestart || this.paused || this.fatal || this.listening || this.starting) return;
@@ -86,11 +101,12 @@ export class VoiceController {
     this.recognition.maxAlternatives = 1;
     this.recognition.lang = "en-US";
     this.recognition.onstart = () => {
+      this.activeProvider = "browser";
       this.starting = false;
       this.listening = true;
       this.restartAttempts = 0;
       this.emit("onState", "listening");
-      this.emit("onStatus", "Listening with the browser fallback. It will reconnect automatically until you click Stop.");
+      this.emit("onStatus", "Listening with browser speech recognition (no Deepgram). It reconnects automatically until you click Stop.");
     };
     this.recognition.onresult = (event) => {
       let interim = "";
@@ -115,7 +131,7 @@ export class VoiceController {
         this.emit("onStatus", "Microphone access was blocked or unavailable. Allow microphone access, then click Start again.");
         return;
       }
-      if (this.shouldRestart && !this.paused) this.emit("onStatus", `Browser recognition paused briefly (${event.error}). Reconnecting automatically…`);
+      if (this.shouldRestart && !this.paused) this.emit("onStatus", `Browser speech recognition paused briefly (${event.error}). Reconnecting automatically…`);
     };
     this.recognition.onend = () => {
       this.starting = false;
@@ -129,6 +145,17 @@ export class VoiceController {
     return true;
   }
 
+  async startBrowser() {
+    if (!this.initBrowserRecognition()) throw new Error("Browser speech recognition is unavailable in this browser.");
+    if (this.listening || this.starting) return "browser";
+    this.activeProvider = "browser";
+    this.starting = true;
+    this.emit("onState", "reconnecting");
+    this.emit("onStatus", "Starting browser speech recognition (no Deepgram)…");
+    this.recognition.start();
+    return "browser";
+  }
+
   async start() {
     if (this.isLocalFile()) throw new Error("Voice notes require HTTPS or localhost.");
     this.fatal = false;
@@ -136,32 +163,34 @@ export class VoiceController {
     this.shouldRestart = true;
     this.clearRestartTimer();
 
+    // Explicit browser mode never requests a Deepgram token or opens a Deepgram socket.
+    if (this.providerPreference === "browser") return this.startBrowser();
+
     if (this.isDeepgramConfigured()) {
       try {
+        this.activeProvider = "deepgram";
         this.starting = true;
         this.emit("onState", "reconnecting");
+        this.emit("onStatus", "Starting Deepgram Nova-3…");
         await this.deepgram().start(this.deepgramCallbacks());
         return "deepgram";
       } catch (error) {
         this.starting = false;
         this.emit("onError", error);
-        this.emit("onStatus", "Deepgram could not start. Switching to browser voice recognition.");
+        this.emit("onStatus", "Deepgram could not start. Switching to browser speech recognition.");
       }
+    } else if (this.providerPreference === "deepgram") {
+      this.emit("onStatus", "Deepgram is not configured. Switching to browser speech recognition.");
     }
 
-    if (!this.initBrowserRecognition()) throw new Error("No voice transcription provider is available in this browser.");
-    if (this.listening || this.starting) return "browser";
-    this.starting = true;
-    this.emit("onState", "reconnecting");
-    this.recognition.start();
-    return "browser";
+    return this.startBrowser();
   }
 
   async pause() {
     this.paused = true;
     this.shouldRestart = false;
     this.clearRestartTimer();
-    if (this.deepgram()?.isActive?.()) {
+    if (this.activeProvider === "deepgram" && this.deepgram()?.isActive?.()) {
       await this.deepgram().pause();
       this.pendingInterim = "";
       return;
@@ -182,8 +211,8 @@ export class VoiceController {
     this.paused = false;
     this.fatal = false;
     this.clearRestartTimer();
-    if (this.deepgram()?.isActive?.()) await this.deepgram().stop();
-    if (this.pendingInterim && !this.isDeepgramConfigured()) this.emit("onFinal", this.pendingInterim);
+    if (this.activeProvider === "deepgram" && this.deepgram()?.isActive?.()) await this.deepgram().stop();
+    if (this.pendingInterim && this.activeProvider === "browser") this.emit("onFinal", this.pendingInterim);
     this.pendingInterim = "";
     if (this.recognition && (this.listening || this.starting)) {
       try { this.recognition.stop(); } catch { /* already stopped */ }
@@ -191,6 +220,7 @@ export class VoiceController {
     this.listening = false;
     this.starting = false;
     this.restartAttempts = 0;
+    this.activeProvider = "";
     this.emit("onInterim", "");
     this.emit("onState", "stopped");
     this.emit("onStatus", "Voice notes stopped.");
