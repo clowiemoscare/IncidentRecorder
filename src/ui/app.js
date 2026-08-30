@@ -20,7 +20,7 @@ import {
   saveSettings
 } from "../state/storage.js";
 import { VoiceController } from "../recorder/voice.js";
-import { analyzeWithWorkersAi, workersAiEndpoint } from "../ticket/ai-client.js";
+import { analyzeWithWorkersAi, checkWorkersAiHealth, workersAiEndpoint } from "../ticket/ai-client.js";
 import { DETAIL_FIELDS, emptyFields, extractFields } from "../ticket/extractor.js";
 import { generateTicketModel, renderTicketText } from "../ticket/generator.js";
 import { analyzeLocally } from "../ticket/local-analyzer.js";
@@ -41,6 +41,7 @@ export class IncidentRecorderApp {
     this.generatedOnce = false;
     this.lastAnalysis = null;
     this.toastTimer = null;
+    this.aiReadiness = { checkedAt: 0, status: "unknown", message: "" };
     this.voice = new VoiceController({
       onFinal: (text) => this.appendRoughNote(text),
       onInterim: (text) => this.updateInterim(text),
@@ -59,6 +60,7 @@ export class IncidentRecorderApp {
     this.renderHistory();
     this.wireEvents();
     this.syncVoiceProvider();
+    this.refreshAiReadiness({ force: true });
     this.showPage("recorder");
   }
 
@@ -101,8 +103,9 @@ export class IncidentRecorderApp {
     $("newCategory").value = categoryId;
     this.populateSubcategories(this.settings.subcategoryId);
     this.voice.setTokenEndpoint(this.settings.deepgramTokenEndpoint || "");
-    this.voice.setProviderPreference(this.settings.voiceProvider || "auto");
-    $("voiceProviderSelect").value = this.voice.getProviderPreference();
+    // Transcription choice is session-only so every recording starts with an explicit selection.
+    this.voice.setProviderPreference("");
+    $("voiceProviderSelect").value = "";
     this.syncSettingsStatus();
   }
 
@@ -226,33 +229,31 @@ export class IncidentRecorderApp {
 
   syncVoiceProvider() {
     const configured = this.voice.isDeepgramConfigured();
-    const preference = this.voice.setProviderPreference(this.settings.voiceProvider || "auto");
+    const preference = this.voice.getProviderPreference();
     const select = $("voiceProviderSelect");
     if (select && document.activeElement !== select) select.value = preference;
 
     if (preference === "browser") {
       $("voiceProviderBadge").textContent = "Browser speech";
-      $("deepgramRecorderHint").textContent = "Browser speech mode is enabled. Starting voice notes will not request a Deepgram token or open a Deepgram transcription connection.";
+      $("deepgramRecorderHint").textContent = "Browser speech is selected. Starting voice notes will not request a Deepgram token or open a Deepgram transcription connection.";
       return;
     }
     if (preference === "deepgram") {
       $("voiceProviderBadge").textContent = configured ? "Deepgram Nova-3" : "Deepgram not configured";
       $("deepgramRecorderHint").textContent = configured
-        ? "Deepgram Nova-3 is selected for transcription. Generate sends the completed Rough Notes to the same Worker for ticket analysis."
-        : "Deepgram is selected but not configured. Voice notes will fall back to browser speech recognition when available.";
+        ? "Deepgram Nova-3 is selected for this recording."
+        : "Deepgram is selected but not configured. Configure the Worker endpoint or choose Browser speech before starting.";
       return;
     }
-    $("voiceProviderBadge").textContent = configured ? "Auto · Deepgram" : "Auto · Browser speech";
-    $("deepgramRecorderHint").textContent = configured
-      ? "Auto mode uses Deepgram when available and browser speech if Deepgram cannot start."
-      : "Auto mode uses browser speech recognition because Deepgram is not configured.";
+    $("voiceProviderBadge").textContent = "Choose transcription";
+    $("deepgramRecorderHint").textContent = "Select Browser speech or Deepgram Nova-3 before starting voice notes.";
   }
 
   saveVoiceProviderPreference() {
-    this.settings.voiceProvider = this.voice.setProviderPreference($("voiceProviderSelect").value);
-    saveSettings(this.settings);
+    const preference = this.voice.setProviderPreference($("voiceProviderSelect").value);
     this.syncVoiceProvider();
-    this.showToast(this.settings.voiceProvider === "browser" ? "Browser speech selected. Deepgram will not be used for recording." : "Transcription preference saved.");
+    if (!preference) return;
+    this.showToast(preference === "browser" ? "Browser speech selected. Deepgram will not be used for this recording." : "Deepgram Nova-3 selected for this recording.");
   }
 
   async startVoice() {
@@ -313,6 +314,55 @@ export class IncidentRecorderApp {
     this.showToast("Work Notes template restored.");
   }
 
+  setAiConfigNotice(status, message) {
+    const notice = $("aiConfigNotice");
+    if (!notice) return;
+    notice.dataset.status = status;
+    notice.textContent = message;
+  }
+
+  async refreshAiReadiness({ force = false } = {}) {
+    const endpoint = this.settings.deepgramTokenEndpoint || "";
+    if (!workersAiEndpoint(endpoint)) {
+      this.aiReadiness = { checkedAt: Date.now(), status: "not_configured", message: "Cloudflare AI is not configured. Generate will use the local fallback analyzer." };
+      this.setAiConfigNotice(this.aiReadiness.status, this.aiReadiness.message);
+      return false;
+    }
+
+    if (!force && Date.now() - this.aiReadiness.checkedAt < 300000 && this.aiReadiness.status !== "unknown") {
+      if (this.aiReadiness.status === "ready") return true;
+      if (this.aiReadiness.status === "not_configured") return false;
+    }
+
+    this.setAiConfigNotice("checking", "Checking Cloudflare AI readiness…");
+    try {
+      const health = await checkWorkersAiHealth({ tokenEndpoint: endpoint });
+      if (health.workersAiConfigured) {
+        this.aiReadiness = { checkedAt: Date.now(), status: "ready", message: `Cloudflare AI ready${health.model ? ` · ${health.model}` : ""}.` };
+        this.setAiConfigNotice("ready", this.aiReadiness.message);
+        return true;
+      }
+      this.aiReadiness = { checkedAt: Date.now(), status: "not_configured", message: "Cloudflare Worker is reachable, but Workers AI is not configured. Generate will use the local fallback analyzer." };
+      this.setAiConfigNotice(this.aiReadiness.status, this.aiReadiness.message);
+      return false;
+    } catch (error) {
+      this.aiReadiness = { checkedAt: Date.now(), status: "unknown", message: `Cloudflare AI readiness could not be confirmed: ${error?.message || "health check failed"}.` };
+      this.setAiConfigNotice("unknown", `${this.aiReadiness.message} Generate can still try AI and will fall back locally if needed.`);
+      return null;
+    }
+  }
+
+  async aiGenerationPlan() {
+    const readiness = await this.refreshAiReadiness();
+    if (readiness === true) return { proceed: true, useAi: true };
+    if (readiness === false) {
+      const proceed = confirm("Cloudflare AI is not configured. IncidentRecorder will generate this ticket with the local fallback analyzer instead. Continue?");
+      return { proceed, useAi: false };
+    }
+    const proceed = confirm("Cloudflare AI readiness could not be confirmed. IncidentRecorder can try Cloudflare AI and will use the local fallback if it is unavailable. Continue?");
+    return { proceed, useAi: true };
+  }
+
   async generateTicket() {
     if (!this.ensureRoutingSelected()) return null;
     const rawNotes = $("newRawNotes").value.trim();
@@ -321,6 +371,9 @@ export class IncidentRecorderApp {
       $("newRawNotes").focus();
       return null;
     }
+    const aiPlan = await this.aiGenerationPlan();
+    if (!aiPlan.proceed) return null;
+
     const button = $("generateTicketBtn");
     button.disabled = true;
     button.textContent = "Analyzing call…";
@@ -331,7 +384,7 @@ export class IncidentRecorderApp {
     let analysis = fallback;
     let source = "Local fallback";
 
-    try {
+    if (aiPlan.useAi) try {
       const result = await analyzeWithWorkersAi({
         tokenEndpoint: this.settings.deepgramTokenEndpoint,
         roughNotes: rawNotes,
@@ -352,7 +405,11 @@ export class IncidentRecorderApp {
       source = result.model || "Cloudflare Workers AI";
     } catch (error) {
       console.warn("Workers AI unavailable; local analyzer used", error);
+      this.aiReadiness = { checkedAt: Date.now(), status: "unknown", message: `Cloudflare AI unavailable: ${error.message || "request failed"}` };
+      this.setAiConfigNotice("unknown", "Cloudflare AI was unavailable. The local fallback analyzer was used for this ticket.");
       this.showToast(`Cloudflare AI unavailable; local fallback used. ${error.message || ""}`.trim(), "warning");
+    } else {
+      this.showToast("Cloudflare AI is not configured; local fallback used.", "warning");
     }
 
     this.lastAnalysis = analysis;
@@ -511,22 +568,27 @@ export class IncidentRecorderApp {
   }
 
   resetWorkspace() {
-    if (!confirm("Reset the current Rough Notes, fields, and generated ticket?")) return;
+    if (!confirm("Reset the current Rough Notes, fields, and generated ticket? Category and Subcategory will be kept.")) return;
+    const categoryId = $("newCategory").value;
+    const subcategoryId = $("newSubcategory").value;
     this.stopVoice();
     $("newIncidentForm").reset();
-    this.settings = loadSettings();
-    this.populateCategories(this.settings.categoryId);
+    this.populateCategories(categoryId);
+    this.populateSubcategories(subcategoryId);
+    this.settings.categoryId = categoryId;
+    this.settings.subcategoryId = subcategoryId;
+    saveSettings(this.settings);
     this.dirty = { short: false, detail: false, work: false };
     this.generatedOnce = false;
     this.lastAnalysis = null;
-    this.voice.setProviderPreference(this.settings.voiceProvider || "auto");
-    $("voiceProviderSelect").value = this.voice.getProviderPreference();
+    this.voice.setProviderPreference("");
+    $("voiceProviderSelect").value = "";
     this.applyInitialTemplates();
     this.updateVerifyFieldVisibility();
     this.syncVoiceProvider();
     this.setGenerationStatus("");
     this.setSaveStatus("Not saved");
-    this.showToast("Workspace reset.");
+    this.showToast("Workspace reset. Category and Subcategory were preserved; select a transcription method before recording again.");
   }
 
   saveEndpoint() {
@@ -538,6 +600,7 @@ export class IncidentRecorderApp {
     if (!result.ok) return this.showToast(result.message, "error");
     this.syncSettingsStatus();
     this.syncVoiceProvider();
+    this.refreshAiReadiness({ force: true });
     this.showToast(normalized ? "Cloudflare Worker endpoint saved." : "Worker endpoint cleared.");
   }
 
@@ -582,9 +645,13 @@ export class IncidentRecorderApp {
         subcategory: "Hardware issue: - Main harness"
       });
       status.textContent = `Connected · ${result.model} ready`;
+      this.aiReadiness = { checkedAt: Date.now(), status: "ready", message: `Cloudflare AI ready · ${result.model}.` };
+      this.setAiConfigNotice("ready", this.aiReadiness.message);
       this.showToast("Cloudflare Workers AI ticket analysis is working.");
     } catch (error) {
       status.textContent = `Connection failed: ${error.message || "unknown error"}`;
+      this.aiReadiness = { checkedAt: Date.now(), status: "not_configured", message: "Cloudflare AI is not ready. Generate will use the local fallback unless the AI connection is fixed." };
+      this.setAiConfigNotice("not_configured", this.aiReadiness.message);
       this.showToast("Workers AI test failed.", "error");
     }
   }

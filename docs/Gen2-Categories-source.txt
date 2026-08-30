@@ -1,0 +1,11 @@
+Category: Keepstock Gen2 - Onsite Mobile App
+Subcategory: -- None --, Check-In/Check-Out, Digital Storage Connect, Go-Live Install, OKTA Access/Login, On-Hand Balance, Open Stock, Order Viewer, Organize Shipment, RPO-Approve updates, RPO-Item Quantity, RPO-Other, RPO-Review/Submit, Storages, Task Plan, Training, User Management, Other
+
+Category: Keepstock Gen2 - Web Customer
+Subcategory:  --None--, Access/Log-in, Customer Training, Insights, System, Vend History, Other
+
+Keepstock: Keepstock Gen2 - Workstation
+Subcategory: --None--, Access/Login, Billing Group, Item Update, Site Status, Storage Unit, User Management, Other
+
+Category: Keepstock Gen2 - GVEND 3
+Subcategory: -- None --, Hardware Issue - Aux Board, Hardware Issue - Main Board, Hardware Issue - Relay Board, Hardware Issue - Drop Sensor, Hardware Issue - Dual Coil Gears, Hardware Issue - Motors, Hardware Issue - Power Supply, Hardware Issue - Tray, Hardware Issue - Main Harness, Machine Replacement, Physical Damage, Product Sizing, Hardware Issue - Door Issue, Hardware Issue - Door Actuator, Other

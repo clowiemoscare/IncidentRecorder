@@ -94,6 +94,11 @@ test("Gen2 category templates keep only the requested systems", () => {
   assert.doesNotMatch(web, /•Onsite App:/);
   assert.doesNotMatch(web, /•GVEND3:/);
 
+  const workstation = renderDetailedDescription({ categoryId: "keepstock_gen2_workstation", subcategoryId: "gen2_workstation_access_login", fields: {} });
+  assert.match(workstation, /•Workstation:/);
+  assert.doesNotMatch(workstation, /•Onsite App:/);
+  assert.doesNotMatch(workstation, /•GVEND3:/);
+
   const gvend = renderDetailedDescription({ categoryId: "keepstock_gen2_gvend3", subcategoryId: "gen2_gvend3_other", fields: {} });
   assert.match(gvend, /•GVEND3:/);
   assert.match(gvend, /•KS WEB Customer:/);

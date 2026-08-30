@@ -42,3 +42,33 @@ test("browser speech preference does not call Deepgram", async () => {
   await controller.stop();
   delete global.window;
 });
+
+test("voice recording requires an explicit transcription selection", async () => {
+  global.window = { location: { protocol: "https:" }, SpeechRecognition: null, webkitSpeechRecognition: null, IncidentRecorderDeepgram: null };
+  const controller = new VoiceController({});
+  assert.equal(controller.getProviderPreference(), "");
+  await assert.rejects(() => controller.start(), /Select a transcription method/i);
+  delete global.window;
+});
+
+test("explicit Deepgram selection does not silently fall back to browser speech", async () => {
+  let browserStarts = 0;
+  class FakeRecognition { start() { browserStarts += 1; } stop() {} }
+  global.window = {
+    location: { protocol: "https:" },
+    SpeechRecognition: FakeRecognition,
+    webkitSpeechRecognition: null,
+    IncidentRecorderDeepgram: {
+      setTokenEndpoint: () => "",
+      start: async () => {},
+      isActive: () => false,
+      stop: async () => {},
+      pause: async () => {}
+    }
+  };
+  const controller = new VoiceController({});
+  controller.setProviderPreference("deepgram");
+  await assert.rejects(() => controller.start(), /Deepgram is selected but not configured/i);
+  assert.equal(browserStarts, 0);
+  delete global.window;
+});

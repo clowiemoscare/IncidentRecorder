@@ -165,7 +165,25 @@ export const TICKET_ROUTES = [
     template: "gen2_onsite_mobile_app",
     templateFamily: "gen2",
     verifyFields: ["siteName", "accountNumber", "currentTask", "timeIssueOccurred", "screenshot", "iosVersion", "appVersion", "deviceId", ...GEN2_CLOSE_FIELDS],
-    subcategories: [pair("gen2_onsite_mobile_other", "other")]
+    subcategories: [
+      pair("gen2_onsite_check_in_out", "Check-In/Check-Out"),
+      pair("gen2_onsite_digital_storage_connect", "Digital Storage Connect"),
+      pair("gen2_onsite_go_live_install", "Go-Live Install"),
+      pair("gen2_onsite_okta_access_login", "OKTA Access/Login"),
+      pair("gen2_onsite_on_hand_balance", "On-Hand Balance"),
+      pair("gen2_onsite_open_stock", "Open Stock"),
+      pair("gen2_onsite_order_viewer", "Order Viewer"),
+      pair("gen2_onsite_organize_shipment", "Organize Shipment"),
+      pair("gen2_onsite_rpo_approve_updates", "RPO-Approve updates"),
+      pair("gen2_onsite_rpo_item_quantity", "RPO-Item Quantity"),
+      pair("gen2_onsite_rpo_other", "RPO-Other"),
+      pair("gen2_onsite_rpo_review_submit", "RPO-Review/Submit"),
+      pair("gen2_onsite_storages", "Storages"),
+      pair("gen2_onsite_task_plan", "Task Plan"),
+      pair("gen2_onsite_training", "Training"),
+      pair("gen2_onsite_user_management", "User Management"),
+      pair("gen2_onsite_mobile_other", "Other")
+    ]
   },
   {
     id: "keepstock_gen2_web_customer",
@@ -173,7 +191,30 @@ export const TICKET_ROUTES = [
     template: "gen2_web_customer",
     templateFamily: "gen2",
     verifyFields: ["siteName", "accountNumber", "customerAdminName", "customerAdminEmail", "browser", "timeIssueOccurred", "screenshot", ...GEN2_CLOSE_FIELDS],
-    subcategories: [pair("gen2_web_customer_other", "other")]
+    subcategories: [
+      pair("gen2_web_access_login", "Access/Log-in"),
+      pair("gen2_web_customer_training", "Customer Training"),
+      pair("gen2_web_insights", "Insights"),
+      pair("gen2_web_system", "System"),
+      pair("gen2_web_vend_history", "Vend History"),
+      pair("gen2_web_customer_other", "Other")
+    ]
+  },
+  {
+    id: "keepstock_gen2_workstation",
+    label: "Keepstock Gen2 - Workstation",
+    template: "gen2_workstation",
+    templateFamily: "gen2",
+    verifyFields: ["siteName", "accountNumber", "timeIssueOccurred", "screenshot", ...GEN2_CLOSE_FIELDS],
+    subcategories: [
+      pair("gen2_workstation_access_login", "Access/Login"),
+      pair("gen2_workstation_billing_group", "Billing Group"),
+      pair("gen2_workstation_item_update", "Item Update"),
+      pair("gen2_workstation_site_status", "Site Status"),
+      pair("gen2_workstation_storage_unit", "Storage Unit"),
+      pair("gen2_workstation_user_management", "User Management"),
+      pair("gen2_workstation_other", "Other")
+    ]
   },
   {
     id: "keepstock_gen2_gvend3",
@@ -181,7 +222,23 @@ export const TICKET_ROUTES = [
     template: "gen2_gvend3",
     templateFamily: "gen2",
     verifyFields: ["siteName", "accountNumber", "storageUnit", "timeIssueOccurred", "softwareVersion", "screenshot", "deviceId", "customerAdminName", "customerAdminEmail", "browser", ...GEN2_CLOSE_FIELDS],
-    subcategories: [pair("gen2_gvend3_other", "other")]
+    subcategories: [
+      pair("gen2_gvend_aux_board", "Hardware Issue - Aux Board"),
+      pair("gen2_gvend_main_board", "Hardware Issue - Main Board"),
+      pair("gen2_gvend_relay_board", "Hardware Issue - Relay Board"),
+      pair("gen2_gvend_drop_sensor", "Hardware Issue - Drop Sensor"),
+      pair("gen2_gvend_dual_coil_gears", "Hardware Issue - Dual Coil Gears"),
+      pair("gen2_gvend_motors", "Hardware Issue - Motors"),
+      pair("gen2_gvend_power_supply", "Hardware Issue - Power Supply"),
+      pair("gen2_gvend_tray", "Hardware Issue - Tray"),
+      pair("gen2_gvend_main_harness", "Hardware Issue - Main Harness"),
+      pair("gen2_gvend_machine_replacement", "Machine Replacement"),
+      pair("gen2_gvend_physical_damage", "Physical Damage"),
+      pair("gen2_gvend_product_sizing", "Product Sizing"),
+      pair("gen2_gvend_door_issue", "Hardware Issue - Door Issue"),
+      pair("gen2_gvend_door_actuator", "Hardware Issue - Door Actuator"),
+      pair("gen2_gvend3_other", "Other")
+    ]
   }
 ];
 

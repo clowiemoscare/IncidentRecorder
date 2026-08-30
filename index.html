@@ -37,14 +37,14 @@
         <div class="workspace-main">
           <form id="newIncidentForm" autocomplete="off" onsubmit="return false;">
             <section class="panel" id="captureNotes">
-              <div class="section-heading"><div><span class="step-number">1</span><div><h2>Capture call notes</h2><p>Use Deepgram or browser speech recognition. Rough Notes are never rewritten by ticket generation.</p></div></div><span class="provider-badge" id="voiceProviderBadge">Browser speech</span></div>
+              <div class="section-heading"><div><span class="step-number">1</span><div><h2>Capture call notes</h2><p>Select Deepgram or browser speech before each recording. Rough Notes are never rewritten by ticket generation.</p></div></div><span class="provider-badge" id="voiceProviderBadge">Choose transcription</span></div>
 
               <div class="voice-card">
                 <div class="voice-toolbar">
-                  <div class="voice-state"><span class="voice-dot ready" id="voiceDot"></span><span id="voiceStatus">Voice notes are ready.</span></div>
+                  <div class="voice-state"><span class="voice-dot ready" id="voiceDot"></span><span id="voiceStatus">Select a transcription method before starting voice notes.</span></div>
                   <label class="provider-select-label">Transcription
-                    <select id="voiceProviderSelect">
-                      <option value="auto">Auto</option>
+                    <select id="voiceProviderSelect" required aria-required="true">
+                      <option value="">-- Select transcription --</option>
                       <option value="browser">Browser speech (no Deepgram)</option>
                       <option value="deepgram">Deepgram Nova-3</option>
                     </select>
@@ -63,6 +63,7 @@
               <label class="field-label">Rough Notes
                 <textarea id="newRawNotes" rows="4"></textarea>
               </label>
+              <div class="ai-config-notice" id="aiConfigNotice" data-status="checking" role="status" aria-live="polite">Checking Cloudflare AI readiness…</div>
               <div class="button-row">
                 <button class="button" id="extractDetailsBtn" type="button">Extract details</button>
                 <button class="button primary" id="generateTicketBtn" type="button"><span aria-hidden="true">✦</span> Generate clean ticket</button>

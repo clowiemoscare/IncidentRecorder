@@ -180,6 +180,19 @@ Issue Type: ${issueType || "(Data Load Failure, Data Maintenance, Knowledge Gap,
 Why are we making changes to the data: ${whyDataChanges}`;
 }
 
+
+function gen2WorkstationTemplate(fields, analysis) {
+  return `${gen2Header()}
+
+•Workstation:
+Site Name: ${value(fields, "siteName")}
+Account Number (optional): ${value(fields, "accountNumber")}
+Time of Issue: ${value(fields, "timeIssueOccurred")}
+Screenshot ( if possible): ${value(fields, "screenshot")}
+
+${gen2Closing(fields, analysis)}`;
+}
+
 function gen2OnsiteMobileTemplate(fields, analysis) {
   return `${gen2Header()}
 
@@ -241,6 +254,7 @@ export function renderDetailedDescription({ categoryId, subcategoryId, fields, a
   if (kind === "machine") return machineTemplate(fields);
   if (kind === "pc_data") return pcDataTemplate(fields);
   if (kind === "gcom_app") return gcomAppTemplate(fields);
+  if (kind === "gen2_workstation") return gen2WorkstationTemplate(fields, analysis);
   if (kind === "gen2_onsite_mobile_app") return gen2OnsiteMobileTemplate(fields, analysis);
   if (kind === "gen2_web_customer") return gen2WebCustomerTemplate(fields, analysis);
   if (kind === "gen2_gvend3") return gen2Gvend3Template(fields, analysis);

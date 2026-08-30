@@ -26,6 +26,34 @@ export function healthEndpoint(tokenEndpoint) {
   }
 }
 
+export async function checkWorkersAiHealth({ tokenEndpoint, timeoutMs = 3500 } = {}) {
+  const endpoint = healthEndpoint(tokenEndpoint);
+  if (!endpoint) return { reachable: false, workersAiConfigured: false, reason: "endpoint_not_configured" };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "omit",
+      cache: "no-store",
+      signal: controller.signal
+    });
+    let payload = {};
+    try { payload = await response.json(); } catch { /* handled below */ }
+    if (!response.ok) throw new Error(payload?.error || `Worker health check failed (${response.status})`);
+    return {
+      reachable: true,
+      workersAiConfigured: Boolean(payload?.workersAiConfigured),
+      deepgramConfigured: Boolean(payload?.deepgramConfigured),
+      model: String(payload?.model || "")
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function analyzeWithWorkersAi({ tokenEndpoint, roughNotes, category, subcategory, signal }) {
   const endpoint = workersAiEndpoint(tokenEndpoint);
   if (!endpoint) throw new Error("Cloudflare Worker endpoint is not configured");

@@ -25,3 +25,21 @@ test("Rough Notes is configured at twice the interim minimum height", () => {
   assert.match(css, /\.interim \{ min-height: 48px; \}/);
   assert.match(css, /#newRawNotes \{ min-height: 96px; height: 96px;/);
 });
+
+test("Auto transcription is removed and an explicit transcription choice is required", () => {
+  assert.doesNotMatch(html, /<option value="auto">/);
+  assert.match(html, /<select id="voiceProviderSelect" required/);
+  assert.match(html, /-- Select transcription --/);
+  assert.match(app, /Select Browser speech or Deepgram Nova-3 before starting voice notes/);
+});
+
+test("workspace reset preserves Category and Subcategory", () => {
+  assert.match(app, /resetWorkspace\(\)[\s\S]*const categoryId = \$\("newCategory"\)\.value;[\s\S]*const subcategoryId = \$\("newSubcategory"\)\.value;/);
+  assert.match(app, /populateCategories\(categoryId\);[\s\S]*populateSubcategories\(subcategoryId\);/);
+});
+
+test("Cloudflare AI readiness is visible and confirmed before local fallback generation", () => {
+  assert.match(html, /id="aiConfigNotice"/);
+  assert.match(app, /aiGenerationPlan\(\)/);
+  assert.match(app, /Cloudflare AI is not configured[\s\S]*local fallback analyzer instead\. Continue\?/);
+});

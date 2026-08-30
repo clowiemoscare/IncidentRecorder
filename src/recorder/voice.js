@@ -11,7 +11,7 @@ export class VoiceController {
     this.restartAttempts = 0;
     this.pendingInterim = "";
     this.tokenEndpoint = "";
-    this.providerPreference = "auto";
+    this.providerPreference = "";
     this.activeProvider = "";
   }
 
@@ -22,8 +22,8 @@ export class VoiceController {
     return this.deepgram()?.setTokenEndpoint(this.tokenEndpoint) || "";
   }
 
-  setProviderPreference(preference = "auto") {
-    const normalized = ["auto", "browser", "deepgram"].includes(preference) ? preference : "auto";
+  setProviderPreference(preference = "") {
+    const normalized = ["browser", "deepgram"].includes(preference) ? preference : "";
     this.providerPreference = normalized;
     return normalized;
   }
@@ -158,32 +158,37 @@ export class VoiceController {
 
   async start() {
     if (this.isLocalFile()) throw new Error("Voice notes require HTTPS or localhost.");
+    if (!this.providerPreference) throw new Error("Select a transcription method before starting voice notes.");
+
     this.fatal = false;
     this.paused = false;
     this.shouldRestart = true;
     this.clearRestartTimer();
 
-    // Explicit browser mode never requests a Deepgram token or opens a Deepgram socket.
+    // Browser mode never requests a Deepgram token or opens a Deepgram socket.
     if (this.providerPreference === "browser") return this.startBrowser();
 
-    if (this.isDeepgramConfigured()) {
-      try {
-        this.activeProvider = "deepgram";
-        this.starting = true;
-        this.emit("onState", "reconnecting");
-        this.emit("onStatus", "Starting Deepgram Nova-3…");
-        await this.deepgram().start(this.deepgramCallbacks());
-        return "deepgram";
-      } catch (error) {
-        this.starting = false;
-        this.emit("onError", error);
-        this.emit("onStatus", "Deepgram could not start. Switching to browser speech recognition.");
-      }
-    } else if (this.providerPreference === "deepgram") {
-      this.emit("onStatus", "Deepgram is not configured. Switching to browser speech recognition.");
+    if (!this.isDeepgramConfigured()) {
+      this.shouldRestart = false;
+      throw new Error("Deepgram is selected but not configured. Configure the Worker endpoint or choose Browser speech.");
     }
 
-    return this.startBrowser();
+    try {
+      this.activeProvider = "deepgram";
+      this.starting = true;
+      this.emit("onState", "reconnecting");
+      this.emit("onStatus", "Starting Deepgram Nova-3…");
+      await this.deepgram().start(this.deepgramCallbacks());
+      return "deepgram";
+    } catch (error) {
+      this.starting = false;
+      this.shouldRestart = false;
+      this.activeProvider = "";
+      this.emit("onError", error);
+      this.emit("onState", "stopped");
+      this.emit("onStatus", "Deepgram could not start. Choose Browser speech if you want to record without Deepgram.");
+      throw new Error(`Deepgram could not start: ${error?.message || "connection error"}`);
+    }
   }
 
   async pause() {

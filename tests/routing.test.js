@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   categoryLabel,
   defaultCategoryId,
+  getCategory,
   templateKindFor,
   resolveCategoryId,
   verifyFieldIdsFor
@@ -18,6 +19,7 @@ const cases = [
   ["keepstock_gcom_mobile_app", "gcom_cart", "gcom_app"],
   ["keepstock_gen2_onsite_mobile_app", "gen2_onsite_mobile_other", "gen2_onsite_mobile_app"],
   ["keepstock_gen2_web_customer", "gen2_web_customer_other", "gen2_web_customer"],
+  ["keepstock_gen2_workstation", "gen2_workstation_access_login", "gen2_workstation"],
   ["keepstock_gen2_gvend3", "gen2_gvend3_other", "gen2_gvend3"]
 ];
 
@@ -80,4 +82,33 @@ test("Gen2 categories expose only their relevant data-entry fields", () => {
   const gvend = verifyFieldIdsFor("keepstock_gen2_gvend3");
   assert.ok(gvend.includes("storageUnit"));
   assert.ok(gvend.includes("customerAdminEmail"));
+});
+
+
+test("Gen2 subcategories match the uploaded category source", () => {
+  const labels = (categoryId) => getCategory(categoryId).subcategories.map((item) => item.label);
+  assert.deepEqual(labels("keepstock_gen2_onsite_mobile_app"), [
+    "Check-In/Check-Out", "Digital Storage Connect", "Go-Live Install", "OKTA Access/Login", "On-Hand Balance",
+    "Open Stock", "Order Viewer", "Organize Shipment", "RPO-Approve updates", "RPO-Item Quantity", "RPO-Other",
+    "RPO-Review/Submit", "Storages", "Task Plan", "Training", "User Management", "Other"
+  ]);
+  assert.deepEqual(labels("keepstock_gen2_web_customer"), ["Access/Log-in", "Customer Training", "Insights", "System", "Vend History", "Other"]);
+  assert.deepEqual(labels("keepstock_gen2_workstation"), ["Access/Login", "Billing Group", "Item Update", "Site Status", "Storage Unit", "User Management", "Other"]);
+  assert.deepEqual(labels("keepstock_gen2_gvend3"), [
+    "Hardware Issue - Aux Board", "Hardware Issue - Main Board", "Hardware Issue - Relay Board", "Hardware Issue - Drop Sensor",
+    "Hardware Issue - Dual Coil Gears", "Hardware Issue - Motors", "Hardware Issue - Power Supply", "Hardware Issue - Tray",
+    "Hardware Issue - Main Harness", "Machine Replacement", "Physical Damage", "Product Sizing", "Hardware Issue - Door Issue",
+    "Hardware Issue - Door Actuator", "Other"
+  ]);
+  for (const categoryId of ["keepstock_gen2_onsite_mobile_app", "keepstock_gen2_web_customer", "keepstock_gen2_workstation", "keepstock_gen2_gvend3"]) {
+    assert.ok(!labels(categoryId).some((label) => /none/i.test(label)), "required subcategory list should not include a None option");
+  }
+});
+
+test("Gen2 Workstation exposes only workstation and closing fields", () => {
+  const fields = verifyFieldIdsFor("keepstock_gen2_workstation");
+  for (const id of ["siteName", "accountNumber", "timeIssueOccurred", "screenshot", "rootCause", "issueType", "whyDataChanges"]) assert.ok(fields.includes(id));
+  assert.ok(!fields.includes("currentTask"));
+  assert.ok(!fields.includes("customerAdminEmail"));
+  assert.ok(!fields.includes("storageUnit"));
 });

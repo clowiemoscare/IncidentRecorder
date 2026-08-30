@@ -73,3 +73,8 @@
   .provider-select-label select { min-width: 0; flex: 1; }
   .field-grid .span-2 { grid-column: span 1; }
 }
+
+.ai-config-notice { margin: 8px 0 10px; border: 1px solid #40506a; background: #0d1726; color: #c9d7ea; border-radius: 10px; padding: 9px 10px; font-size: 12px; }
+.ai-config-notice[data-status="ready"] { border-color: #285a47; background: #0d241c; color: #b8f1d7; }
+.ai-config-notice[data-status="not_configured"], .ai-config-notice[data-status="unknown"] { border-color: #705a2b; background: #2a261a; color: #f8d985; }
+.ai-config-notice[data-status="checking"] { border-color: #29496f; background: #0c203a; color: #b9d5ff; }
