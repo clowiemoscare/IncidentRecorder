@@ -88,6 +88,7 @@ export function normalizeAiAnalysis(analysis, fallback) {
     : [];
   const issueSummary = String(analysis?.issue_summary || fallback?.issueSummary || "").trim();
   const resolution = String(analysis?.resolution || fallback?.resolution || "").trim();
+  const rootCause = String(analysis?.root_cause || fallback?.rootCause || "").trim();
   const accountNumber = String(analysis?.account_number || "").replace(/\D/g, "");
 
   return {
@@ -97,6 +98,7 @@ export function normalizeAiAnalysis(analysis, fallback) {
     troubleshootingSteps: steps.length ? steps : (fallback?.troubleshootingSteps || []),
     conditionalNextSteps,
     resolution,
+    rootCause,
     resolved: Boolean(analysis?.resolved || resolution),
     cleanedNotes: fallback?.cleanedNotes || ""
   };

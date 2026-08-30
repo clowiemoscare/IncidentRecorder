@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkWorkersAiHealth, healthEndpoint, workersAiEndpoint } from "../src/ticket/ai-client.js";
+import { checkWorkersAiHealth, healthEndpoint, normalizeAiAnalysis, workersAiEndpoint } from "../src/ticket/ai-client.js";
 
 test("AI endpoints are derived from the configured Worker token endpoint", () => {
   const token = "https://incident.example.workers.dev/token";
@@ -28,4 +28,20 @@ test("health check surfaces Workers AI binding readiness", async () => {
   assert.equal(health.workersAiConfigured, true);
   assert.equal(health.model, "test-model");
   delete global.fetch;
+});
+
+
+test("AI normalization carries the structured possible root cause into the ticket analysis model", () => {
+  const normalized = normalizeAiAnalysis({
+    issue_summary: "onsite app task unavailable",
+    account_number: "001234",
+    troubleshooting_steps: ["Reviewed the site task assignment"],
+    conditional_next_steps: [],
+    resolution: "Assigned the task to the site",
+    root_cause: "Likely task-to-site assignment was missing",
+    resolved: true
+  }, {});
+
+  assert.equal(normalized.rootCause, "Likely task-to-site assignment was missing");
+  assert.equal(normalized.accountNumber, "001234");
 });

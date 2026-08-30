@@ -154,3 +154,148 @@ test("battery dispensing workflow does not collapse distinct troubleshooting ste
   assert.match(ticket.workNotes, /resets after one week/i);
   assert.match(ticket.workNotes, /retesting dispensing/i);
 });
+
+test("Gen2 short descriptions use the system prefix instead of the standard account prefix", () => {
+  const cases = [
+    ["keepstock_gen2_onsite_mobile_app", "gen2_onsite_mobile_other", "Onsite App:"],
+    ["keepstock_gen2_gvend3", "gen2_gvend3_other", "GVEND3:"],
+    ["keepstock_gen2_web_customer", "gen2_web_customer_other", "KS WEB Customer:"],
+    ["keepstock_gen2_workstation", "gen2_workstation_other", "Workstation:"]
+  ];
+
+  for (const [categoryId, subcategoryId, prefix] of cases) {
+    const ticket = generateTicketModel({
+      categoryId,
+      subcategoryId,
+      subcategoryLabel: subcategoryLabel(categoryId, subcategoryId),
+      fields: { accountNumber: "001234" },
+      analysis: {
+        issueSummary: "unable to complete current task",
+        troubleshootingSteps: [],
+        conditionalNextSteps: [],
+        resolution: "",
+        accountNumber: "001234"
+      }
+    });
+    assert.equal(ticket.shortDescription, `${prefix} Unable to complete current task`);
+    assert.doesNotMatch(ticket.shortDescription, /Acct #:/);
+  }
+});
+
+test("Gen2 Work Notes use the Gen2 labels and do not use Standard-only sections", () => {
+  const ticket = generateTicketModel({
+    categoryId: "keepstock_gen2_onsite_mobile_app",
+    subcategoryId: "gen2_onsite_mobile_other",
+    subcategoryLabel: "Other",
+    fields: {
+      rootCause: "Knowledge gap",
+      issueType: "Knowledge Gap",
+      whyDataChanges: "Correct the site task configuration"
+    },
+    analysis: {
+      issueSummary: "onsite app task not available",
+      troubleshootingSteps: ["Confirmed the current task", "Reviewed the site configuration"],
+      conditionalNextSteps: ["Retest after the next data load"],
+      resolution: "Updated the task configuration",
+      accountNumber: ""
+    }
+  });
+
+  assert.match(ticket.workNotes, /^Issue: Onsite app task not available/m);
+  assert.match(ticket.workNotes, /^Troubleshooting:/m);
+  assert.match(ticket.workNotes, /- Confirmed the current task\./);
+  assert.match(ticket.workNotes, /Conditional next step: Retest after the next data load\./);
+  assert.match(ticket.workNotes, /^Resolution: Updated the task configuration\./m);
+  assert.match(ticket.workNotes, /^Root Cause: Knowledge gap$/m);
+  assert.match(ticket.workNotes, /^Issue Type: Knowledge Gap$/m);
+  assert.match(ticket.workNotes, /^Why are we making changes to the data: Correct the site task configuration$/m);
+  assert.doesNotMatch(ticket.workNotes, /Troubleshooting Steps:/);
+  assert.doesNotMatch(ticket.workNotes, /Reason for Escalation:/);
+});
+
+test("Gen2 Work Notes keep the required Issue Type guidance when Issue Type is blank", () => {
+  const ticket = generateTicketModel({
+    categoryId: "keepstock_gen2_workstation",
+    subcategoryId: "gen2_workstation_other",
+    subcategoryLabel: "Other",
+    fields: {},
+    analysis: {
+      issueSummary: "workstation access issue",
+      troubleshootingSteps: [],
+      conditionalNextSteps: [],
+      resolution: "",
+      accountNumber: ""
+    }
+  });
+  assert.match(ticket.workNotes, /Issue Type: \(Data Load Failure, Data Maintenance, Knowledge Gap, System, Hardware\)/);
+});
+
+
+test("Gen2 short descriptions remove Keepstock Gen2/category wording from AI issue summaries", () => {
+  const cases = [
+    ["keepstock_gen2_onsite_mobile_app", "gen2_onsite_mobile_other", "Keepstock Gen2 - Onsite Mobile App - unable to complete current task", "Onsite App: Unable to complete current task"],
+    ["keepstock_gen2_gvend3", "gen2_gvend3_other", "Keepstock Gen2 - GVEND 3: machine will not dispense", "GVEND3: Machine will not dispense"],
+    ["keepstock_gen2_web_customer", "gen2_web_customer_other", "Keepstock Gen2 - Web Customer - unable to view vend history", "KS WEB Customer: Unable to view vend history"],
+    ["keepstock_gen2_workstation", "gen2_workstation_other", "Keepstock Gen2 - workstation access issue", "Workstation: Access issue"]
+  ];
+
+  for (const [categoryId, subcategoryId, issueSummary, expected] of cases) {
+    const ticket = generateTicketModel({
+      categoryId,
+      subcategoryId,
+      subcategoryLabel: subcategoryLabel(categoryId, subcategoryId),
+      fields: {},
+      analysis: {
+        issueSummary,
+        troubleshootingSteps: [],
+        conditionalNextSteps: [],
+        resolution: "",
+        rootCause: "",
+        accountNumber: ""
+      }
+    });
+    assert.equal(ticket.shortDescription, expected);
+    assert.doesNotMatch(ticket.shortDescription, /Keepstock Gen2/i);
+  }
+});
+
+test("Gen2 Work Notes use the AI possible root cause when the verified Root Cause field is blank", () => {
+  const ticket = generateTicketModel({
+    categoryId: "keepstock_gen2_onsite_mobile_app",
+    subcategoryId: "gen2_onsite_mobile_other",
+    subcategoryLabel: "Other",
+    fields: {},
+    analysis: {
+      issueSummary: "task unavailable in onsite app",
+      troubleshootingSteps: ["Reviewed the site configuration", "Found the task was not assigned to the site"],
+      conditionalNextSteps: [],
+      resolution: "Assigned the task to the site and verified it was available",
+      rootCause: "Likely task-to-site assignment was missing",
+      accountNumber: ""
+    }
+  });
+
+  assert.match(ticket.workNotes, /^Root Cause: Likely task-to-site assignment was missing$/m);
+  assert.match(ticket.detailedDescription, /^Root Cause: Likely task-to-site assignment was missing$/m);
+});
+
+test("manual Gen2 Root Cause remains authoritative over the AI root-cause suggestion", () => {
+  const ticket = generateTicketModel({
+    categoryId: "keepstock_gen2_workstation",
+    subcategoryId: "gen2_workstation_other",
+    subcategoryLabel: "Other",
+    fields: { rootCause: "Confirmed incorrect billing group assignment" },
+    analysis: {
+      issueSummary: "workstation access issue",
+      troubleshootingSteps: ["Reviewed the billing group"],
+      conditionalNextSteps: [],
+      resolution: "Corrected the billing group assignment",
+      rootCause: "Likely billing group configuration mismatch",
+      accountNumber: ""
+    }
+  });
+
+  assert.match(ticket.workNotes, /^Root Cause: Confirmed incorrect billing group assignment$/m);
+  assert.doesNotMatch(ticket.workNotes, /Likely billing group configuration mismatch/);
+  assert.match(ticket.detailedDescription, /^Root Cause: Confirmed incorrect billing group assignment$/m);
+});

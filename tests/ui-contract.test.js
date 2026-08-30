@@ -43,3 +43,9 @@ test("Cloudflare AI readiness is visible and confirmed before local fallback gen
   assert.match(app, /aiGenerationPlan\(\)/);
   assert.match(app, /Cloudflare AI is not configured[\s\S]*local fallback analyzer instead\. Continue\?/);
 });
+
+
+test("Gen2 AI root cause fills the verified field only when the user has not supplied one", () => {
+  assert.match(app, /templateFamilyFor\(\$\("newCategory"\)\.value\) === "gen2" && !fields\.rootCause && analysis\.rootCause/);
+  assert.match(app, /fields\.rootCause = analysis\.rootCause;[\s\S]*\$\("rootCause"\)\.value = analysis\.rootCause;/);
+});

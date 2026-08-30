@@ -6,6 +6,7 @@ import {
   resolveCategoryId,
   resolveSubcategoryId,
   subcategoryLabel,
+  templateFamilyFor,
   verifyFieldIdsFor
 } from "../config/ticket-routing.js";
 import {
@@ -28,7 +29,8 @@ import { GEN2_RESET_TEMPLATE, STANDARD_RESET_TEMPLATE, renderDetailedDescription
 import { cleanNotes, sentence } from "../ticket/text.js";
 import { $, $$, copyText, downloadText, escapeHtml } from "./dom.js";
 
-const WORK_NOTES_TEMPLATE = `Issue:\n\nTroubleshooting Steps:\n\nResolution:\n\nReason for Escalation:\n`;
+const STANDARD_WORK_NOTES_TEMPLATE = `Issue:\n\nTroubleshooting Steps:\n\nResolution:\n\nReason for Escalation:\n`;
+const GEN2_WORK_NOTES_TEMPLATE = `Issue: \n\nTroubleshooting:\n\nResolution:\n\nRoot Cause:\n\nIssue Type: (Data Load Failure, Data Maintenance, Knowledge Gap, System, Hardware)\n\nWhy are we making changes to the data:`;
 const DETAIL_FIELD_IDS = DETAIL_FIELDS.map(([id]) => id);
 
 export class IncidentRecorderApp {
@@ -109,9 +111,13 @@ export class IncidentRecorderApp {
     this.syncSettingsStatus();
   }
 
+  workNotesTemplate(categoryId = $("newCategory")?.value || "") {
+    return templateFamilyFor(categoryId) === "gen2" ? GEN2_WORK_NOTES_TEMPLATE : STANDARD_WORK_NOTES_TEMPLATE;
+  }
+
   applyInitialTemplates() {
     $("detailedDescription").value = this.recommendedTemplate();
-    $("workNotes").value = WORK_NOTES_TEMPLATE;
+    $("workNotes").value = this.workNotesTemplate();
     this.syncGeneratedOutput();
     this.renderDetectedSummary();
   }
@@ -281,6 +287,7 @@ export class IncidentRecorderApp {
       $("templateNotice").hidden = false;
       this.showToast("Routing changed. Your edited Detailed Description was preserved. Use Apply routing template if you want the new template.");
     }
+    if (!this.dirty.work) $("workNotes").value = this.workNotesTemplate();
     this.syncGeneratedOutput();
     this.setSaveStatus("Unsaved changes");
   }
@@ -308,7 +315,7 @@ export class IncidentRecorderApp {
   }
 
   resetWorkNotes() {
-    $("workNotes").value = WORK_NOTES_TEMPLATE;
+    $("workNotes").value = this.workNotesTemplate();
     this.dirty.work = true;
     this.syncGeneratedOutput();
     this.showToast("Work Notes template restored.");
@@ -399,6 +406,7 @@ export class IncidentRecorderApp {
         troubleshootingSteps: Array.isArray(ai.troubleshooting_steps) && ai.troubleshooting_steps.length ? ai.troubleshooting_steps : fallback.troubleshootingSteps,
         conditionalNextSteps: Array.isArray(ai.conditional_next_steps) ? ai.conditional_next_steps : [],
         resolution: String(ai.resolution || fallback.resolution || "").trim(),
+        rootCause: String(ai.root_cause || "").trim(),
         resolved: Boolean(ai.resolved || ai.resolution || fallback.resolved),
         cleanedNotes: fallback.cleanedNotes
       };
@@ -414,11 +422,18 @@ export class IncidentRecorderApp {
 
     this.lastAnalysis = analysis;
 
+    let detectedFieldsChanged = false;
     if (!fields.accountNumber && analysis.accountNumber) {
       fields.accountNumber = analysis.accountNumber;
       $("accountNumber").value = analysis.accountNumber;
-      this.renderDetectedSummary();
+      detectedFieldsChanged = true;
     }
+    if (templateFamilyFor($("newCategory").value) === "gen2" && !fields.rootCause && analysis.rootCause) {
+      fields.rootCause = analysis.rootCause;
+      $("rootCause").value = analysis.rootCause;
+      detectedFieldsChanged = true;
+    }
+    if (detectedFieldsChanged) this.renderDetectedSummary();
 
     const ticket = generateTicketModel({
       categoryId: $("newCategory").value,
@@ -485,7 +500,7 @@ export class IncidentRecorderApp {
     this.updateVerifyFieldVisibility();
     $("newTitle").value = data.shortDescription || data.newTitle || "";
     $("detailedDescription").value = data.detailedDescription || this.recommendedTemplate();
-    $("workNotes").value = data.workNotes || WORK_NOTES_TEMPLATE;
+    $("workNotes").value = data.workNotes || this.workNotesTemplate(categoryId);
     this.dirty = { short: Boolean(data.dirty?.short), detail: Boolean(data.dirty?.detail), work: Boolean(data.dirty?.work) };
     this.syncGeneratedOutput();
     this.setSaveStatus("Loaded");

@@ -168,7 +168,7 @@ function gen2Closing(fields, analysis = {}) {
   const steps = Array.isArray(analysis?.troubleshootingSteps) ? analysis.troubleshootingSteps.map((item) => String(item || "").trim()).filter(Boolean) : [];
   const troubleshooting = steps.length ? `\n${steps.map((step) => `- ${step}`).join("\n")}` : "";
   const resolution = String(analysis?.resolution || "").trim();
-  const rootCause = value(fields, "rootCause");
+  const rootCause = value(fields, "rootCause") || String(analysis?.rootCause || "").trim();
   const issueType = value(fields, "issueType");
   const whyDataChanges = value(fields, "whyDataChanges");
   return `**[Update before closing INC, remove description in between parenthesis ( ) ]**

@@ -164,6 +164,7 @@ export const TICKET_ROUTES = [
     label: "Keepstock Gen2 - Onsite Mobile App",
     template: "gen2_onsite_mobile_app",
     templateFamily: "gen2",
+    shortDescriptionPrefix: "Onsite App:",
     verifyFields: ["siteName", "accountNumber", "currentTask", "timeIssueOccurred", "screenshot", "iosVersion", "appVersion", "deviceId", ...GEN2_CLOSE_FIELDS],
     subcategories: [
       pair("gen2_onsite_check_in_out", "Check-In/Check-Out"),
@@ -190,6 +191,7 @@ export const TICKET_ROUTES = [
     label: "Keepstock Gen2 - Web Customer",
     template: "gen2_web_customer",
     templateFamily: "gen2",
+    shortDescriptionPrefix: "KS WEB Customer:",
     verifyFields: ["siteName", "accountNumber", "customerAdminName", "customerAdminEmail", "browser", "timeIssueOccurred", "screenshot", ...GEN2_CLOSE_FIELDS],
     subcategories: [
       pair("gen2_web_access_login", "Access/Log-in"),
@@ -205,6 +207,7 @@ export const TICKET_ROUTES = [
     label: "Keepstock Gen2 - Workstation",
     template: "gen2_workstation",
     templateFamily: "gen2",
+    shortDescriptionPrefix: "Workstation:",
     verifyFields: ["siteName", "accountNumber", "timeIssueOccurred", "screenshot", ...GEN2_CLOSE_FIELDS],
     subcategories: [
       pair("gen2_workstation_access_login", "Access/Login"),
@@ -221,6 +224,7 @@ export const TICKET_ROUTES = [
     label: "Keepstock Gen2 - GVEND 3",
     template: "gen2_gvend3",
     templateFamily: "gen2",
+    shortDescriptionPrefix: "GVEND3:",
     verifyFields: ["siteName", "accountNumber", "storageUnit", "timeIssueOccurred", "softwareVersion", "screenshot", "deviceId", "customerAdminName", "customerAdminEmail", "browser", ...GEN2_CLOSE_FIELDS],
     subcategories: [
       pair("gen2_gvend_aux_board", "Hardware Issue - Aux Board"),
@@ -277,6 +281,10 @@ export function templateKindFor(categoryId, subcategoryId) {
 
 export function templateFamilyFor(categoryId) {
   return getCategory(categoryId)?.templateFamily || "standard";
+}
+
+export function shortDescriptionPrefixFor(categoryId) {
+  return getCategory(categoryId)?.shortDescriptionPrefix || "";
 }
 
 export function verifyFieldIdsFor(categoryId) {
