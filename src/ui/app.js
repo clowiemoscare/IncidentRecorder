@@ -21,12 +21,13 @@ import {
   saveSettings
 } from "../state/storage.js";
 import { VoiceController } from "../recorder/voice.js";
-import { analyzeWithWorkersAi, checkWorkersAiHealth, workersAiEndpoint } from "../ticket/ai-client.js";
+import { analyzeWithWorkersAi, checkWorkersAiHealth, normalizeAiAnalysis, workersAiEndpoint } from "../ticket/ai-client.js";
 import { DETAIL_FIELDS, emptyFields, extractFields } from "../ticket/extractor.js";
-import { generateTicketModel, renderTicketText } from "../ticket/generator.js";
+import { generateTicketModel, generateTicketUpdateModel, renderTicketText } from "../ticket/generator.js";
 import { analyzeLocally } from "../ticket/local-analyzer.js";
 import { GEN2_RESET_TEMPLATE, STANDARD_RESET_TEMPLATE, renderDetailedDescription } from "../ticket/templates.js";
 import { cleanNotes, sentence } from "../ticket/text.js";
+import { advanceSnapshot, analysisDelta, createLiveSession, mergeIncrementalAnalysis, notesSinceSnapshot, wordCount } from "../ticket/session.js";
 import { $, $$, copyText, downloadText, escapeHtml } from "./dom.js";
 
 const STANDARD_WORK_NOTES_TEMPLATE = `Issue:\n\nTroubleshooting Steps:\n\nResolution:\n\nReason for Escalation:\n`;
@@ -42,6 +43,7 @@ export class IncidentRecorderApp {
     this.dirty = { short: false, detail: false, work: false };
     this.generatedOnce = false;
     this.lastAnalysis = null;
+    this.liveSession = createLiveSession();
     this.toastTimer = null;
     this.aiReadiness = { checkedAt: 0, status: "unknown", message: "" };
     this.voice = new VoiceController({
@@ -62,6 +64,8 @@ export class IncidentRecorderApp {
     this.renderHistory();
     this.wireEvents();
     this.syncVoiceProvider();
+    this.updateGenerateButton();
+    this.updateSnapshotStatus();
     this.refreshAiReadiness({ force: true });
     this.showPage("recorder");
   }
@@ -195,10 +199,10 @@ export class IncidentRecorderApp {
     return true;
   }
 
-  extractDetails({ notify = true } = {}) {
-    const extracted = extractFields($("newRawNotes").value, this.readFields());
+  extractDetails({ notify = true, updateTemplate = true, rawNotes = $("newRawNotes").value } = {}) {
+    const extracted = extractFields(rawNotes, this.readFields());
     this.writeFields(extracted);
-    if (!this.dirty.detail) $("detailedDescription").value = this.recommendedTemplate(extracted);
+    if (updateTemplate && !this.dirty.detail) $("detailedDescription").value = this.recommendedTemplate(extracted);
     if (notify) this.showToast("Details extracted. Review the detected values before generating.");
     this.setSaveStatus("Unsaved changes");
     return extracted;
@@ -210,6 +214,7 @@ export class IncidentRecorderApp {
     const area = $("newRawNotes");
     area.value = area.value ? `${area.value}\n${line}` : line;
     this.setSaveStatus("Unsaved changes");
+    this.updateSnapshotStatus();
   }
 
   updateInterim(text) {
@@ -370,58 +375,32 @@ export class IncidentRecorderApp {
     return { proceed, useAi: true };
   }
 
-  async generateTicket() {
-    if (!this.ensureRoutingSelected()) return null;
-    const rawNotes = $("newRawNotes").value.trim();
-    if (!rawNotes) {
-      this.showToast("Add Rough Notes before generating the ticket.", "error");
-      $("newRawNotes").focus();
-      return null;
-    }
-    const aiPlan = await this.aiGenerationPlan();
-    if (!aiPlan.proceed) return null;
-
+  updateGenerateButton() {
     const button = $("generateTicketBtn");
-    button.disabled = true;
-    button.textContent = "Analyzing call…";
-    this.setGenerationStatus("Analyzing the full transcript…");
+    if (!button) return;
+    button.innerHTML = this.liveSession.snapshotNumber
+      ? `<span aria-hidden="true">✦</span> Generate Ticket Update`
+      : `<span aria-hidden="true">✦</span> Generate Initial Ticket`;
+  }
 
-    const fields = this.extractDetails({ notify: false });
-    const fallback = analyzeLocally(rawNotes);
-    let analysis = fallback;
-    let source = "Local fallback";
-
-    if (aiPlan.useAi) try {
-      const result = await analyzeWithWorkersAi({
-        tokenEndpoint: this.settings.deepgramTokenEndpoint,
-        roughNotes: rawNotes,
-        category: categoryLabel($("newCategory").value),
-        subcategory: subcategoryLabel($("newCategory").value, $("newSubcategory").value)
-      });
-      const ai = result.analysis;
-      analysis = {
-        source: "ai",
-        issueSummary: String(ai.issue_summary || fallback.issueSummary || "").trim(),
-        accountNumber: /^\d{4,}$/.test(String(ai.account_number || "").replace(/\D/g, "")) ? String(ai.account_number).replace(/\D/g, "") : "",
-        troubleshootingSteps: Array.isArray(ai.troubleshooting_steps) && ai.troubleshooting_steps.length ? ai.troubleshooting_steps : fallback.troubleshootingSteps,
-        conditionalNextSteps: Array.isArray(ai.conditional_next_steps) ? ai.conditional_next_steps : [],
-        resolution: String(ai.resolution || fallback.resolution || "").trim(),
-        rootCause: String(ai.root_cause || "").trim(),
-        resolved: Boolean(ai.resolved || ai.resolution || fallback.resolved),
-        cleanedNotes: fallback.cleanedNotes
-      };
-      source = result.model || "Cloudflare Workers AI";
-    } catch (error) {
-      console.warn("Workers AI unavailable; local analyzer used", error);
-      this.aiReadiness = { checkedAt: Date.now(), status: "unknown", message: `Cloudflare AI unavailable: ${error.message || "request failed"}` };
-      this.setAiConfigNotice("unknown", "Cloudflare AI was unavailable. The local fallback analyzer was used for this ticket.");
-      this.showToast(`Cloudflare AI unavailable; local fallback used. ${error.message || ""}`.trim(), "warning");
-    } else {
-      this.showToast("Cloudflare AI is not configured; local fallback used.", "warning");
+  updateSnapshotStatus() {
+    const status = $("snapshotStatus");
+    if (!status) return;
+    if (!this.liveSession.snapshotNumber) {
+      status.dataset.state = "idle";
+      status.textContent = "No ticket snapshot yet. Generating the initial ticket will not stop voice recording or Rough Notes capture.";
+      return;
     }
+    const newNotes = notesSinceSnapshot($("newRawNotes")?.value || "", this.liveSession);
+    const words = wordCount(newNotes);
+    const time = this.liveSession.lastGeneratedAt
+      ? new Date(this.liveSession.lastGeneratedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+      : "";
+    status.dataset.state = words ? "new" : "captured";
+    status.textContent = `Snapshot #${this.liveSession.snapshotNumber}${time ? ` generated ${time}` : ""} · ${words} new ${words === 1 ? "word" : "words"} since snapshot. Recording and troubleshooting can continue.`;
+  }
 
-    this.lastAnalysis = analysis;
-
+  applyAnalysisFields(fields, analysis) {
     let detectedFieldsChanged = false;
     if (!fields.accountNumber && analysis.accountNumber) {
       fields.accountNumber = analysis.accountNumber;
@@ -434,35 +413,140 @@ export class IncidentRecorderApp {
       detectedFieldsChanged = true;
     }
     if (detectedFieldsChanged) this.renderDetectedSummary();
+    return fields;
+  }
 
-    const ticket = generateTicketModel({
-      categoryId: $("newCategory").value,
-      subcategoryId: $("newSubcategory").value,
-      subcategoryLabel: subcategoryLabel($("newCategory").value, $("newSubcategory").value),
-      fields,
-      analysis,
-      overrides: {
-        ...(this.dirty.short ? { shortDescription: $("newTitle").value } : {}),
-        ...(this.dirty.detail ? { detailedDescription: $("detailedDescription").value } : {}),
-        ...(this.dirty.work ? { workNotes: $("workNotes").value } : {})
+  async analyzeGenerationNotes({ notes, mode, previousAnalysis, aiPlan }) {
+    const localIncrement = analyzeLocally(notes);
+    const fallback = mode === "update"
+      ? mergeIncrementalAnalysis(previousAnalysis, localIncrement)
+      : localIncrement;
+    let analysis = fallback;
+    let source = "Local fallback";
+
+    if (aiPlan.useAi) {
+      try {
+        const result = await analyzeWithWorkersAi({
+          tokenEndpoint: this.settings.deepgramTokenEndpoint,
+          roughNotes: notes,
+          category: categoryLabel($("newCategory").value),
+          subcategory: subcategoryLabel($("newCategory").value, $("newSubcategory").value),
+          mode,
+          previousAnalysis
+        });
+        analysis = normalizeAiAnalysis(result.analysis, fallback);
+        source = result.model || "Cloudflare Workers AI";
+      } catch (error) {
+        console.warn("Workers AI unavailable; local analyzer used", error);
+        this.aiReadiness = { checkedAt: Date.now(), status: "unknown", message: `Cloudflare AI unavailable: ${error.message || "request failed"}` };
+        this.setAiConfigNotice("unknown", `Cloudflare AI was unavailable. The local fallback analyzer was used for this ${mode === "update" ? "ticket update" : "ticket"}.`);
+        this.showToast(`Cloudflare AI unavailable; local fallback used. ${error.message || ""}`.trim(), "warning");
       }
-    });
+    } else {
+      this.showToast("Cloudflare AI is not configured; local fallback used.", "warning");
+    }
 
-    if (!this.dirty.short) $("newTitle").value = ticket.shortDescription;
-    if (!this.dirty.detail) $("detailedDescription").value = ticket.detailedDescription;
-    if (!this.dirty.work) $("workNotes").value = ticket.workNotes;
-    $("generatedTicket").value = renderTicketText({
-      shortDescription: $("newTitle").value,
-      detailedDescription: $("detailedDescription").value,
-      workNotes: $("workNotes").value
-    });
-    this.generatedOnce = true;
-    this.setGenerationStatus(`Generated ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · ${source}`);
-    this.setSaveStatus("Generated");
-    button.disabled = false;
-    button.innerHTML = `<span aria-hidden="true">✦</span> Generate clean ticket`;
-    this.showToast(source === "Local fallback" ? "Ticket generated with the local fallback." : "Ticket generated with Cloudflare Workers AI.");
-    return ticket;
+    return { analysis, source };
+  }
+
+  async generateTicket() {
+    if (!this.ensureRoutingSelected()) return null;
+    const rawWorkspaceNotes = $("newRawNotes").value;
+    const mode = this.liveSession.snapshotNumber ? "update" : "initial";
+    const notesForAnalysis = mode === "update"
+      ? notesSinceSnapshot(rawWorkspaceNotes, this.liveSession)
+      : rawWorkspaceNotes.trim();
+
+    if (!notesForAnalysis) {
+      const message = mode === "update"
+        ? "No new Rough Notes have been added since the last ticket snapshot."
+        : "Add Rough Notes before generating the ticket.";
+      this.showToast(message, "error");
+      $("newRawNotes").focus();
+      return null;
+    }
+
+    const previousAnalysis = mode === "update" ? this.liveSession.lastAnalysis : null;
+    if (mode === "update" && !previousAnalysis) {
+      this.showToast("The previous ticket analysis is unavailable. Generate a new initial ticket snapshot before creating updates.", "error");
+      return null;
+    }
+
+    const aiPlan = await this.aiGenerationPlan();
+    if (!aiPlan.proceed) return null;
+
+    const button = $("generateTicketBtn");
+    button.disabled = true;
+    button.textContent = mode === "update" ? "Analyzing new troubleshooting…" : "Analyzing call…";
+    this.setGenerationStatus(mode === "update" ? "Analyzing notes added since the last snapshot…" : "Analyzing the initial transcript snapshot…");
+
+    try {
+      const fields = this.extractDetails({ notify: false, updateTemplate: mode === "initial", rawNotes: rawWorkspaceNotes });
+      const { analysis, source } = await this.analyzeGenerationNotes({
+        notes: notesForAnalysis,
+        mode,
+        previousAnalysis,
+        aiPlan
+      });
+      this.lastAnalysis = analysis;
+      this.applyAnalysisFields(fields, analysis);
+
+      if (mode === "initial") {
+        const ticket = generateTicketModel({
+          categoryId: $("newCategory").value,
+          subcategoryId: $("newSubcategory").value,
+          subcategoryLabel: subcategoryLabel($("newCategory").value, $("newSubcategory").value),
+          fields,
+          analysis,
+          overrides: {
+            ...(this.dirty.short ? { shortDescription: $("newTitle").value } : {}),
+            ...(this.dirty.detail ? { detailedDescription: $("detailedDescription").value } : {}),
+            ...(this.dirty.work ? { workNotes: $("workNotes").value } : {})
+          }
+        });
+
+        if (!this.dirty.short) $("newTitle").value = ticket.shortDescription;
+        if (!this.dirty.detail) $("detailedDescription").value = ticket.detailedDescription;
+        if (!this.dirty.work) $("workNotes").value = ticket.workNotes;
+        this.syncGeneratedOutput();
+        $("ticketUpdate").value = "";
+        $("ticketUpdatePanel").hidden = true;
+        this.liveSession = advanceSnapshot(this.liveSession, {
+          roughNotes: rawWorkspaceNotes,
+          analysis,
+          latestUpdate: ""
+        });
+        this.generatedOnce = true;
+        this.setGenerationStatus(`Initial ticket snapshot #${this.liveSession.snapshotNumber} generated · ${source}`);
+        this.setSaveStatus("Initial ticket generated");
+        this.showToast(source === "Local fallback" ? "Initial ticket generated with the local fallback. Recording can continue." : "Initial ticket generated. Recording can continue.");
+        return ticket;
+      }
+
+      const delta = analysisDelta(previousAnalysis, analysis);
+      const update = generateTicketUpdateModel({
+        categoryId: $("newCategory").value,
+        subcategoryLabel: subcategoryLabel($("newCategory").value, $("newSubcategory").value),
+        fields,
+        analysis: delta
+      });
+      $("ticketUpdate").value = update.workNotes;
+      $("ticketUpdatePanel").hidden = false;
+      this.liveSession = advanceSnapshot(this.liveSession, {
+        roughNotes: rawWorkspaceNotes,
+        analysis,
+        latestUpdate: update.workNotes
+      });
+      this.generatedOnce = true;
+      this.setGenerationStatus(`Ticket update snapshot #${this.liveSession.snapshotNumber} generated · ${source}`);
+      this.setSaveStatus("Ticket update generated");
+      this.showToast(source === "Local fallback" ? "Ticket update generated with the local fallback. Troubleshooting can continue." : "Ticket update generated. Troubleshooting can continue.");
+      return update;
+    } finally {
+      button.disabled = false;
+      this.updateGenerateButton();
+      this.updateSnapshotStatus();
+    }
   }
 
   syncGeneratedOutput() {
@@ -486,12 +570,15 @@ export class IncidentRecorderApp {
       detailedDescription: $("detailedDescription").value,
       workNotes: $("workNotes").value,
       generatedTicket: $("generatedTicket").value,
+      liveSession: createLiveSession(this.liveSession),
       dirty: { ...this.dirty }
     };
   }
 
   restoreFormData(data = {}) {
-    this.lastAnalysis = null;
+    this.liveSession = createLiveSession(data.liveSession || {});
+    this.lastAnalysis = this.liveSession.lastAnalysis;
+    this.generatedOnce = Boolean(this.liveSession.snapshotNumber);
     const categoryId = resolveCategoryId(data.categoryId || data.category) || defaultCategoryId();
     $("newCategory").value = categoryId;
     this.populateSubcategories(data.subcategoryId || data.subcategory);
@@ -503,6 +590,11 @@ export class IncidentRecorderApp {
     $("workNotes").value = data.workNotes || this.workNotesTemplate(categoryId);
     this.dirty = { short: Boolean(data.dirty?.short), detail: Boolean(data.dirty?.detail), work: Boolean(data.dirty?.work) };
     this.syncGeneratedOutput();
+    $("ticketUpdate").value = this.liveSession.latestUpdate || "";
+    $("ticketUpdatePanel").hidden = !this.liveSession.latestUpdate;
+    this.updateGenerateButton();
+    this.updateSnapshotStatus();
+    this.setGenerationStatus(this.liveSession.snapshotNumber ? `Loaded live session · snapshot #${this.liveSession.snapshotNumber}` : "");
     this.setSaveStatus("Loaded");
     this.showPage("recorder");
   }
@@ -596,12 +688,17 @@ export class IncidentRecorderApp {
     this.dirty = { short: false, detail: false, work: false };
     this.generatedOnce = false;
     this.lastAnalysis = null;
+    this.liveSession = createLiveSession();
+    $("ticketUpdate").value = "";
+    $("ticketUpdatePanel").hidden = true;
     this.voice.setProviderPreference("");
     $("voiceProviderSelect").value = "";
     this.applyInitialTemplates();
     this.updateVerifyFieldVisibility();
     this.syncVoiceProvider();
     this.setGenerationStatus("");
+    this.updateGenerateButton();
+    this.updateSnapshotStatus();
     this.setSaveStatus("Not saved");
     this.showToast("Workspace reset. Category and Subcategory were preserved; select a transcription method before recording again.");
   }
@@ -615,6 +712,8 @@ export class IncidentRecorderApp {
     if (!result.ok) return this.showToast(result.message, "error");
     this.syncSettingsStatus();
     this.syncVoiceProvider();
+    this.updateGenerateButton();
+    this.updateSnapshotStatus();
     this.refreshAiReadiness({ force: true });
     this.showToast(normalized ? "Cloudflare Worker endpoint saved." : "Worker endpoint cleared.");
   }
@@ -688,6 +787,7 @@ export class IncidentRecorderApp {
       detailed: [$("detailedDescription").value, "Detailed description copied."],
       work: [$("workNotes").value, "Work Notes copied."],
       ticket: [$("generatedTicket").value, "Generated ticket copied."],
+      update: [$("ticketUpdate").value, "Ticket update copied."],
       rough: [$("newRawNotes").value, "Rough Notes copied."]
     };
     const [text, message] = map[target] || ["", "Copied."];
@@ -738,13 +838,14 @@ export class IncidentRecorderApp {
       });
     }
 
-    $("newRawNotes").addEventListener("input", () => this.setSaveStatus("Unsaved changes"));
+    $("newRawNotes").addEventListener("input", () => { this.setSaveStatus("Unsaved changes"); this.updateSnapshotStatus(); });
     $("newTitle").addEventListener("input", () => { this.dirty.short = true; this.syncGeneratedOutput(); });
     $("detailedDescription").addEventListener("input", () => { this.dirty.detail = true; this.syncGeneratedOutput(); });
     $("workNotes").addEventListener("input", () => { this.dirty.work = true; this.syncGeneratedOutput(); });
 
     $("cleanNotesBtn").addEventListener("click", () => {
       $("newRawNotes").value = cleanNotes($("newRawNotes").value);
+      this.updateSnapshotStatus();
       this.showToast("Rough Notes cleaned without changing ticket fields.");
     });
     $("extractDetailsBtn").addEventListener("click", () => this.extractDetails());

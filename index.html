@@ -63,10 +63,11 @@
               <label class="field-label">Rough Notes
                 <textarea id="newRawNotes" rows="4"></textarea>
               </label>
+              <div class="snapshot-status" id="snapshotStatus" data-state="idle" role="status" aria-live="polite">No ticket snapshot yet. Generating the initial ticket will not stop voice recording or Rough Notes capture.</div>
               <div class="ai-config-notice" id="aiConfigNotice" data-status="checking" role="status" aria-live="polite">Checking Cloudflare AI readiness…</div>
               <div class="button-row">
                 <button class="button" id="extractDetailsBtn" type="button">Extract details</button>
-                <button class="button primary" id="generateTicketBtn" type="button"><span aria-hidden="true">✦</span> Generate clean ticket</button>
+                <button class="button primary" id="generateTicketBtn" type="button"><span aria-hidden="true">✦</span> Generate Initial Ticket</button>
                 <button class="button" id="saveDraftBtn" type="button">Save draft</button>
                 <button class="button danger" id="resetWorkspaceBtn" type="button">Reset workspace</button>
               </div>
@@ -124,7 +125,7 @@
             </section>
 
             <section class="panel" id="ticketDescriptions">
-              <div class="section-heading"><div><span class="step-number">3</span><div><h2>Ticket descriptions</h2><p>Cloudflare AI analyzes the complete Rough Notes. Ticket formatting stays local and deterministic.</p></div></div><span class="generation-status" id="generationStatus"></span></div>
+              <div class="section-heading"><div><span class="step-number">3</span><div><h2>Ticket descriptions</h2><p>The first generation analyzes the initial Rough Notes snapshot. Later updates analyze only new notes plus the previous structured analysis.</p></div></div><span class="generation-status" id="generationStatus"></span></div>
 
               <label class="field-label">Short Description<input id="newTitle" maxlength="180" /></label>
               <div class="field-actions single-action"><button class="button small" type="button" data-copy-target="short">Copy short description</button></div>
@@ -155,6 +156,13 @@
               <button class="button" type="button" data-copy-target="detailed">Copy detailed description</button>
               <button class="button" id="downloadTicketBtn" type="button">Download .txt</button>
               <button class="button success" id="saveHistoryBtn" type="button">Save to History</button>
+            </div>
+          </section>
+          <section class="panel output-panel update-output-panel" id="ticketUpdatePanel" hidden>
+            <div class="section-heading compact"><div><h2>Latest Ticket Update</h2><p>Only troubleshooting captured after the previous snapshot is formatted here. The initial ticket above remains unchanged.</p></div></div>
+            <textarea id="ticketUpdate" rows="15" readonly></textarea>
+            <div class="output-buttons single-output-action">
+              <button class="button primary" type="button" data-copy-target="update">Copy Ticket Update</button>
             </div>
           </section>
         </aside>

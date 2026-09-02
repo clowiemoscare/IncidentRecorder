@@ -102,3 +102,18 @@ export function generateTicketModel({
   ticket.fullText = renderTicketText(ticket);
   return ticket;
 }
+export function generateTicketUpdateModel({
+  categoryId,
+  subcategoryLabel,
+  fields,
+  analysis
+}) {
+  const workNotes = buildWorkNotes({ categoryId, issueLabel: subcategoryLabel, analysis, fields });
+  return {
+    workNotes,
+    fullText: `Work Notes:\n${workNotes}`,
+    categoryId,
+    analysis
+  };
+}
+

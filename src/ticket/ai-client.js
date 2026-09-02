@@ -54,11 +54,25 @@ export async function checkWorkersAiHealth({ tokenEndpoint, timeoutMs = 3500 } =
   }
 }
 
-export async function analyzeWithWorkersAi({ tokenEndpoint, roughNotes, category, subcategory, signal }) {
+function toWorkerAnalysis(analysis) {
+  if (!analysis || typeof analysis !== "object") return null;
+  return {
+    issue_summary: String(analysis.issueSummary || ""),
+    account_number: String(analysis.accountNumber || ""),
+    troubleshooting_steps: Array.isArray(analysis.troubleshootingSteps) ? analysis.troubleshootingSteps : [],
+    resolution: String(analysis.resolution || ""),
+    root_cause: String(analysis.rootCause || ""),
+    conditional_next_steps: Array.isArray(analysis.conditionalNextSteps) ? analysis.conditionalNextSteps : [],
+    resolved: Boolean(analysis.resolved)
+  };
+}
+
+export async function analyzeWithWorkersAi({ tokenEndpoint, roughNotes, category, subcategory, mode = "initial", previousAnalysis = null, signal }) {
   const endpoint = workersAiEndpoint(tokenEndpoint);
   if (!endpoint) throw new Error("Cloudflare Worker endpoint is not configured");
-  if (!String(roughNotes || "").trim()) throw new Error("Add rough notes before generating the ticket");
+  if (!String(roughNotes || "").trim()) throw new Error(mode === "update" ? "Add new rough notes before generating a ticket update" : "Add rough notes before generating the ticket");
 
+  const analysisMode = mode === "update" ? "update" : "initial";
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -68,7 +82,9 @@ export async function analyzeWithWorkersAi({ tokenEndpoint, roughNotes, category
     body: JSON.stringify({
       rough_notes: String(roughNotes).trim(),
       category: String(category || ""),
-      subcategory: String(subcategory || "")
+      subcategory: String(subcategory || ""),
+      analysis_mode: analysisMode,
+      previous_analysis: analysisMode === "update" ? toWorkerAnalysis(previousAnalysis) : null
     })
   });
 
