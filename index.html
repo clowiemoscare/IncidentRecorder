@@ -12,22 +12,17 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">IR</span><div><strong>IncidentRecorder</strong><small>Support call → clean ticket</small></div></div>
+    <div class="brand"><span class="brand-mark">KSHD</span><div><strong>IncidentRecorder</strong><small>Capture the call, verify extracted values, generate the ticket, then save</small></div></div>
     <nav class="main-nav" aria-label="Primary navigation">
       <button class="nav-button active" type="button" data-nav="recorder">Recorder</button>
       <button class="nav-button" type="button" data-nav="history">History</button>
       <button class="nav-button" type="button" data-nav="settings">Settings</button>
     </nav>
-    <span class="save-status" id="saveStatus">Not saved</span>
+    <div class="topbar-actions"><span class="save-status" id="saveStatus">Not saved</span><button class="button small header-new-incident" id="newIncidentBtn" type="button">New Incident</button></div>
   </header>
 
   <main class="shell">
     <section class="page active" data-page="recorder">
-      <div class="workflow-header">
-        <div><h1>New Incident</h1><p>Capture the call, verify extracted values, generate the ticket, then copy or save it.</p></div>
-        <div class="workflow-steps" aria-label="Workflow"><span>Capture</span><span>Verify</span><span>Generate</span><span>Save</span></div>
-      </div>
-
       <div class="routing-strip">
         <label><span><b class="required-mark">*</b> Category</span><select id="newCategory" required aria-required="true"></select></label>
         <label><span><b class="required-mark">*</b> Subcategory</span><select id="newSubcategory" required aria-required="true"></select></label>
@@ -37,15 +32,14 @@
         <div class="workspace-main">
           <form id="newIncidentForm" autocomplete="off" onsubmit="return false;">
             <section class="panel" id="captureNotes">
-              <div class="section-heading"><div><span class="step-number">1</span><div><h2>Capture call notes</h2><p>Select Deepgram or browser speech before each recording. Rough Notes are never rewritten by ticket generation.</p></div></div><span class="provider-badge" id="voiceProviderBadge">Choose transcription</span></div>
+              <div class="section-heading"><div><span class="step-number">1</span><div><h2>Capture call notes</h2><p>Browser speech is selected by default. You can switch to Deepgram before starting. Rough Notes are never rewritten by ticket generation.</p></div></div><span class="provider-badge" id="voiceProviderBadge">Browser speech</span></div>
 
               <div class="voice-card">
                 <div class="voice-toolbar">
-                  <div class="voice-state"><span class="voice-dot ready" id="voiceDot"></span><span id="voiceStatus">Select a transcription method before starting voice notes.</span></div>
+                  <div class="voice-state"><span class="voice-dot ready" id="voiceDot"></span><span id="voiceStatus">Browser speech (no Deepgram) is selected. Click Start voice notes when ready.</span></div>
                   <label class="provider-select-label">Transcription
-                    <select id="voiceProviderSelect" required aria-required="true">
-                      <option value="">-- Select transcription --</option>
-                      <option value="browser">Browser speech (no Deepgram)</option>
+                    <select id="voiceProviderSelect">
+                      <option value="browser" selected>Browser speech (no Deepgram)</option>
                       <option value="deepgram">Deepgram Nova-3</option>
                     </select>
                   </label>
@@ -63,11 +57,11 @@
               <label class="field-label">Rough Notes
                 <textarea id="newRawNotes" rows="4"></textarea>
               </label>
-              <div class="snapshot-status" id="snapshotStatus" data-state="idle" role="status" aria-live="polite">No ticket snapshot yet. Generating the initial ticket will not stop voice recording or Rough Notes capture.</div>
+              <div class="snapshot-status" id="snapshotStatus" data-state="idle" role="status" aria-live="polite">No ticket generated yet. Generate can create an Initial ticket while troubleshooting continues, or a Final ticket when the work is complete.</div>
               <div class="ai-config-notice" id="aiConfigNotice" data-status="checking" role="status" aria-live="polite">Checking Cloudflare AI readiness…</div>
               <div class="button-row">
                 <button class="button" id="extractDetailsBtn" type="button">Extract details</button>
-                <button class="button primary" id="generateTicketBtn" type="button"><span aria-hidden="true">✦</span> Generate Initial Ticket</button>
+                <button class="button primary" id="generateTicketBtn" type="button"><span aria-hidden="true">✦</span> Generate ticket</button>
                 <button class="button" id="saveDraftBtn" type="button">Save draft</button>
                 <button class="button danger" id="resetWorkspaceBtn" type="button">Reset workspace</button>
               </div>
@@ -125,7 +119,7 @@
             </section>
 
             <section class="panel" id="ticketDescriptions">
-              <div class="section-heading"><div><span class="step-number">3</span><div><h2>Ticket descriptions</h2><p>The first generation analyzes the initial Rough Notes snapshot. Later updates analyze only new notes plus the previous structured analysis.</p></div></div><span class="generation-status" id="generationStatus"></span></div>
+              <div class="section-heading"><div><span class="step-number">3</span><div><h2>Ticket descriptions</h2><p>Choose Initial ticket to create an early snapshot while troubleshooting continues, or Final ticket to refresh the complete ticket with everything known so far.</p></div></div><span class="generation-status" id="generationStatus"></span></div>
 
               <label class="field-label">Short Description<input id="newTitle" maxlength="180" /></label>
               <div class="field-actions single-action"><button class="button small" type="button" data-copy-target="short">Copy short description</button></div>
@@ -158,13 +152,7 @@
               <button class="button success" id="saveHistoryBtn" type="button">Save to History</button>
             </div>
           </section>
-          <section class="panel output-panel update-output-panel" id="ticketUpdatePanel" hidden>
-            <div class="section-heading compact"><div><h2>Latest Ticket Update</h2><p>Only troubleshooting captured after the previous snapshot is formatted here. The initial ticket above remains unchanged.</p></div></div>
-            <textarea id="ticketUpdate" rows="15" readonly></textarea>
-            <div class="output-buttons single-output-action">
-              <button class="button primary" type="button" data-copy-target="update">Copy Ticket Update</button>
-            </div>
-          </section>
+
         </aside>
       </div>
     </section>
@@ -202,6 +190,18 @@
       </div>
     </section>
   </main>
+
+  <dialog class="template-choice-dialog" id="generationTypeDialog" aria-labelledby="generationTypeTitle">
+    <form method="dialog" class="template-choice-card">
+      <h2 id="generationTypeTitle">Generate ticket</h2>
+      <p>Is this the Initial ticket or the Final ticket?</p>
+      <div class="generation-choice-list">
+        <button class="generation-choice button primary" id="chooseInitialTicketBtn" type="button"><strong>Initial ticket</strong><span>Create the ServiceNow ticket now and keep troubleshooting. Voice recording and Rough Notes can continue.</span></button>
+        <button class="generation-choice button" id="chooseFinalTicketBtn" type="button"><strong>Final ticket</strong><span>Generate the complete ticket using the latest troubleshooting and outcome.</span></button>
+      </div>
+      <div class="template-choice-actions"><button class="button" value="cancel" type="submit">Cancel</button></div>
+    </form>
+  </dialog>
 
   <dialog class="template-choice-dialog" id="templateChoiceDialog" aria-labelledby="templateChoiceTitle">
     <form method="dialog" class="template-choice-card">

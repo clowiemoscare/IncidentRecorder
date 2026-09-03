@@ -23,11 +23,11 @@ import {
 import { VoiceController } from "../recorder/voice.js";
 import { analyzeWithWorkersAi, checkWorkersAiHealth, normalizeAiAnalysis, workersAiEndpoint } from "../ticket/ai-client.js";
 import { DETAIL_FIELDS, emptyFields, extractFields } from "../ticket/extractor.js";
-import { generateTicketModel, generateTicketUpdateModel, renderTicketText } from "../ticket/generator.js";
+import { generateTicketModel, renderTicketText } from "../ticket/generator.js";
 import { analyzeLocally } from "../ticket/local-analyzer.js";
 import { GEN2_RESET_TEMPLATE, STANDARD_RESET_TEMPLATE, renderDetailedDescription } from "../ticket/templates.js";
 import { cleanNotes, sentence } from "../ticket/text.js";
-import { advanceSnapshot, analysisDelta, createLiveSession, mergeIncrementalAnalysis, notesSinceSnapshot, wordCount } from "../ticket/session.js";
+import { advanceSnapshot, createLiveSession, mergeIncrementalAnalysis, notesSinceSnapshot, wordCount } from "../ticket/session.js";
 import { $, $$, copyText, downloadText, escapeHtml } from "./dom.js";
 
 const STANDARD_WORK_NOTES_TEMPLATE = `Issue:\n\nTroubleshooting Steps:\n\nResolution:\n\nReason for Escalation:\n`;
@@ -109,9 +109,9 @@ export class IncidentRecorderApp {
     $("newCategory").value = categoryId;
     this.populateSubcategories(this.settings.subcategoryId);
     this.voice.setTokenEndpoint(this.settings.deepgramTokenEndpoint || "");
-    // Transcription choice is session-only so every recording starts with an explicit selection.
-    this.voice.setProviderPreference("");
-    $("voiceProviderSelect").value = "";
+    // Browser speech is the safe/default transcription path; users can explicitly switch to Deepgram.
+    this.voice.setProviderPreference("browser");
+    $("voiceProviderSelect").value = "browser";
     this.syncSettingsStatus();
   }
 
@@ -378,9 +378,36 @@ export class IncidentRecorderApp {
   updateGenerateButton() {
     const button = $("generateTicketBtn");
     if (!button) return;
-    button.innerHTML = this.liveSession.snapshotNumber
-      ? `<span aria-hidden="true">✦</span> Generate Ticket Update`
-      : `<span aria-hidden="true">✦</span> Generate Initial Ticket`;
+    button.innerHTML = `<span aria-hidden="true">✦</span> Generate ticket`;
+  }
+
+  chooseGenerationType() {
+    return new Promise((resolve) => {
+      const dialog = $("generationTypeDialog");
+      if (!dialog?.showModal) {
+        const answer = prompt("Type INITIAL or FINAL to choose the ticket type.", "initial");
+        const normalized = String(answer || "").trim().toLowerCase();
+        resolve(["initial", "final"].includes(normalized) ? normalized : "");
+        return;
+      }
+      let settled = false;
+      const finish = (type = "") => {
+        if (settled) return;
+        settled = true;
+        $("chooseInitialTicketBtn").removeEventListener("click", initialHandler);
+        $("chooseFinalTicketBtn").removeEventListener("click", finalHandler);
+        dialog.removeEventListener("close", closeHandler);
+        if (dialog.open) dialog.close();
+        resolve(type);
+      };
+      const initialHandler = () => finish("initial");
+      const finalHandler = () => finish("final");
+      const closeHandler = () => finish("");
+      $("chooseInitialTicketBtn").addEventListener("click", initialHandler);
+      $("chooseFinalTicketBtn").addEventListener("click", finalHandler);
+      dialog.addEventListener("close", closeHandler);
+      dialog.showModal();
+    });
   }
 
   updateSnapshotStatus() {
@@ -388,7 +415,7 @@ export class IncidentRecorderApp {
     if (!status) return;
     if (!this.liveSession.snapshotNumber) {
       status.dataset.state = "idle";
-      status.textContent = "No ticket snapshot yet. Generating the initial ticket will not stop voice recording or Rough Notes capture.";
+      status.textContent = "No ticket generated yet. Generate can create an Initial ticket while troubleshooting continues, or a Final ticket when the work is complete.";
       return;
     }
     const newNotes = notesSinceSnapshot($("newRawNotes")?.value || "", this.liveSession);
@@ -396,8 +423,9 @@ export class IncidentRecorderApp {
     const time = this.liveSession.lastGeneratedAt
       ? new Date(this.liveSession.lastGeneratedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
       : "";
+    const type = this.liveSession.lastTicketType === "final" ? "Final ticket" : "Initial ticket";
     status.dataset.state = words ? "new" : "captured";
-    status.textContent = `Snapshot #${this.liveSession.snapshotNumber}${time ? ` generated ${time}` : ""} · ${words} new ${words === 1 ? "word" : "words"} since snapshot. Recording and troubleshooting can continue.`;
+    status.textContent = `${type}${time ? ` generated ${time}` : ""} · ${words} new ${words === 1 ? "word" : "words"} since generation.${this.liveSession.lastTicketType === "initial" ? " Recording and troubleshooting can continue." : ""}`;
   }
 
   applyAnalysisFields(fields, analysis) {
@@ -449,99 +477,90 @@ export class IncidentRecorderApp {
     return { analysis, source };
   }
 
-  async generateTicket() {
+  async generateTicket(ticketType = "") {
     if (!this.ensureRoutingSelected()) return null;
     const rawWorkspaceNotes = $("newRawNotes").value;
-    const mode = this.liveSession.snapshotNumber ? "update" : "initial";
-    const notesForAnalysis = mode === "update"
-      ? notesSinceSnapshot(rawWorkspaceNotes, this.liveSession)
-      : rawWorkspaceNotes.trim();
-
-    if (!notesForAnalysis) {
-      const message = mode === "update"
-        ? "No new Rough Notes have been added since the last ticket snapshot."
-        : "Add Rough Notes before generating the ticket.";
-      this.showToast(message, "error");
+    if (!rawWorkspaceNotes.trim()) {
+      this.showToast("Add Rough Notes before generating the ticket.", "error");
       $("newRawNotes").focus();
       return null;
     }
 
-    const previousAnalysis = mode === "update" ? this.liveSession.lastAnalysis : null;
-    if (mode === "update" && !previousAnalysis) {
-      this.showToast("The previous ticket analysis is unavailable. Generate a new initial ticket snapshot before creating updates.", "error");
-      return null;
-    }
+    const selectedType = ticketType || await this.chooseGenerationType();
+    if (!selectedType) return null;
 
-    const aiPlan = await this.aiGenerationPlan();
-    if (!aiPlan.proceed) return null;
+    const hasPreviousAnalysis = Boolean(this.liveSession.snapshotNumber && this.liveSession.lastAnalysis);
+    const internalMode = selectedType === "final" && hasPreviousAnalysis ? "update" : "initial";
+    const previousAnalysis = internalMode === "update" ? this.liveSession.lastAnalysis : null;
+    const notesForAnalysis = internalMode === "update"
+      ? notesSinceSnapshot(rawWorkspaceNotes, this.liveSession)
+      : rawWorkspaceNotes.trim();
+
+    let aiPlan = { proceed: true, useAi: false };
+    let analysis = previousAnalysis;
+    let source = previousAnalysis ? "Existing analysis" : "Local fallback";
+
+    if (notesForAnalysis) {
+      aiPlan = await this.aiGenerationPlan();
+      if (!aiPlan.proceed) return null;
+    }
 
     const button = $("generateTicketBtn");
     button.disabled = true;
-    button.textContent = mode === "update" ? "Analyzing new troubleshooting…" : "Analyzing call…";
-    this.setGenerationStatus(mode === "update" ? "Analyzing notes added since the last snapshot…" : "Analyzing the initial transcript snapshot…");
+    button.textContent = selectedType === "initial" ? "Generating initial ticket…" : "Generating final ticket…";
+    this.setGenerationStatus(selectedType === "initial"
+      ? "Analyzing the Initial ticket snapshot…"
+      : internalMode === "update" && notesForAnalysis
+        ? "Analyzing new troubleshooting and building the Final ticket…"
+        : "Building the Final ticket from the latest analysis…");
 
     try {
-      const fields = this.extractDetails({ notify: false, updateTemplate: mode === "initial", rawNotes: rawWorkspaceNotes });
-      const { analysis, source } = await this.analyzeGenerationNotes({
-        notes: notesForAnalysis,
-        mode,
-        previousAnalysis,
-        aiPlan
-      });
+      const fields = this.extractDetails({ notify: false, updateTemplate: true, rawNotes: rawWorkspaceNotes });
+      if (notesForAnalysis) {
+        const result = await this.analyzeGenerationNotes({
+          notes: notesForAnalysis,
+          mode: internalMode,
+          previousAnalysis,
+          aiPlan
+        });
+        analysis = result.analysis;
+        source = result.source;
+      }
+      if (!analysis) analysis = analyzeLocally(rawWorkspaceNotes);
       this.lastAnalysis = analysis;
       this.applyAnalysisFields(fields, analysis);
 
-      if (mode === "initial") {
-        const ticket = generateTicketModel({
-          categoryId: $("newCategory").value,
-          subcategoryId: $("newSubcategory").value,
-          subcategoryLabel: subcategoryLabel($("newCategory").value, $("newSubcategory").value),
-          fields,
-          analysis,
-          overrides: {
-            ...(this.dirty.short ? { shortDescription: $("newTitle").value } : {}),
-            ...(this.dirty.detail ? { detailedDescription: $("detailedDescription").value } : {}),
-            ...(this.dirty.work ? { workNotes: $("workNotes").value } : {})
-          }
-        });
-
-        if (!this.dirty.short) $("newTitle").value = ticket.shortDescription;
-        if (!this.dirty.detail) $("detailedDescription").value = ticket.detailedDescription;
-        if (!this.dirty.work) $("workNotes").value = ticket.workNotes;
-        this.syncGeneratedOutput();
-        $("ticketUpdate").value = "";
-        $("ticketUpdatePanel").hidden = true;
-        this.liveSession = advanceSnapshot(this.liveSession, {
-          roughNotes: rawWorkspaceNotes,
-          analysis,
-          latestUpdate: ""
-        });
-        this.generatedOnce = true;
-        this.setGenerationStatus(`Initial ticket snapshot #${this.liveSession.snapshotNumber} generated · ${source}`);
-        this.setSaveStatus("Initial ticket generated");
-        this.showToast(source === "Local fallback" ? "Initial ticket generated with the local fallback. Recording can continue." : "Initial ticket generated. Recording can continue.");
-        return ticket;
-      }
-
-      const delta = analysisDelta(previousAnalysis, analysis);
-      const update = generateTicketUpdateModel({
+      const ticket = generateTicketModel({
         categoryId: $("newCategory").value,
+        subcategoryId: $("newSubcategory").value,
         subcategoryLabel: subcategoryLabel($("newCategory").value, $("newSubcategory").value),
         fields,
-        analysis: delta
+        analysis,
+        overrides: {
+          ...(this.dirty.short ? { shortDescription: $("newTitle").value } : {}),
+          ...(this.dirty.detail ? { detailedDescription: $("detailedDescription").value } : {}),
+          ...(this.dirty.work ? { workNotes: $("workNotes").value } : {})
+        }
       });
-      $("ticketUpdate").value = update.workNotes;
-      $("ticketUpdatePanel").hidden = false;
+
+      if (!this.dirty.short) $("newTitle").value = ticket.shortDescription;
+      if (!this.dirty.detail) $("detailedDescription").value = ticket.detailedDescription;
+      if (!this.dirty.work) $("workNotes").value = ticket.workNotes;
+      this.syncGeneratedOutput();
       this.liveSession = advanceSnapshot(this.liveSession, {
         roughNotes: rawWorkspaceNotes,
         analysis,
-        latestUpdate: update.workNotes
+        latestUpdate: "",
+        ticketType: selectedType
       });
       this.generatedOnce = true;
-      this.setGenerationStatus(`Ticket update snapshot #${this.liveSession.snapshotNumber} generated · ${source}`);
-      this.setSaveStatus("Ticket update generated");
-      this.showToast(source === "Local fallback" ? "Ticket update generated with the local fallback. Troubleshooting can continue." : "Ticket update generated. Troubleshooting can continue.");
-      return update;
+      const label = selectedType === "initial" ? "Initial ticket" : "Final ticket";
+      this.setGenerationStatus(`${label} generated · ${source}`);
+      this.setSaveStatus(`${label} generated`);
+      this.showToast(source === "Local fallback"
+        ? `${label} generated with the local fallback.${selectedType === "initial" ? " Troubleshooting can continue." : ""}`
+        : `${label} generated.${selectedType === "initial" ? " Troubleshooting can continue." : ""}`);
+      return ticket;
     } finally {
       button.disabled = false;
       this.updateGenerateButton();
@@ -590,11 +609,9 @@ export class IncidentRecorderApp {
     $("workNotes").value = data.workNotes || this.workNotesTemplate(categoryId);
     this.dirty = { short: Boolean(data.dirty?.short), detail: Boolean(data.dirty?.detail), work: Boolean(data.dirty?.work) };
     this.syncGeneratedOutput();
-    $("ticketUpdate").value = this.liveSession.latestUpdate || "";
-    $("ticketUpdatePanel").hidden = !this.liveSession.latestUpdate;
     this.updateGenerateButton();
     this.updateSnapshotStatus();
-    this.setGenerationStatus(this.liveSession.snapshotNumber ? `Loaded live session · snapshot #${this.liveSession.snapshotNumber}` : "");
+    this.setGenerationStatus(this.liveSession.snapshotNumber ? `Loaded ${this.liveSession.lastTicketType || "ticket"} generation` : "");
     this.setSaveStatus("Loaded");
     this.showPage("recorder");
   }
@@ -674,33 +691,30 @@ export class IncidentRecorderApp {
     </article>`).join("");
   }
 
-  resetWorkspace() {
-    if (!confirm("Reset the current Rough Notes, fields, and generated ticket? Category and Subcategory will be kept.")) return;
-    const categoryId = $("newCategory").value;
-    const subcategoryId = $("newSubcategory").value;
-    this.stopVoice();
+  async resetWorkspace() {
+    if (!confirm("Reset the current workspace? Rough Notes, routing, extracted fields, and generated ticket will be cleared.")) return;
+    await this.stopVoice();
     $("newIncidentForm").reset();
-    this.populateCategories(categoryId);
-    this.populateSubcategories(subcategoryId);
-    this.settings.categoryId = categoryId;
-    this.settings.subcategoryId = subcategoryId;
+    this.settings.categoryId = "";
+    this.settings.subcategoryId = "";
     saveSettings(this.settings);
+    this.populateCategories("");
+    this.populateSubcategories("");
     this.dirty = { short: false, detail: false, work: false };
     this.generatedOnce = false;
     this.lastAnalysis = null;
     this.liveSession = createLiveSession();
-    $("ticketUpdate").value = "";
-    $("ticketUpdatePanel").hidden = true;
-    this.voice.setProviderPreference("");
-    $("voiceProviderSelect").value = "";
+    this.voice.setProviderPreference("browser");
+    $("voiceProviderSelect").value = "browser";
     this.applyInitialTemplates();
     this.updateVerifyFieldVisibility();
     this.syncVoiceProvider();
+    this.setVoiceStatus("Browser speech (no Deepgram) is selected. Click Start voice notes when ready.");
     this.setGenerationStatus("");
     this.updateGenerateButton();
     this.updateSnapshotStatus();
     this.setSaveStatus("Not saved");
-    this.showToast("Workspace reset. Category and Subcategory were preserved; select a transcription method before recording again.");
+    this.showToast("Workspace reset. Select a Category and Subcategory for the next incident.");
   }
 
   saveEndpoint() {
@@ -787,7 +801,6 @@ export class IncidentRecorderApp {
       detailed: [$("detailedDescription").value, "Detailed description copied."],
       work: [$("workNotes").value, "Work Notes copied."],
       ticket: [$("generatedTicket").value, "Generated ticket copied."],
-      update: [$("ticketUpdate").value, "Ticket update copied."],
       rough: [$("newRawNotes").value, "Rough Notes copied."]
     };
     const [text, message] = map[target] || ["", "Copied."];
@@ -853,6 +866,7 @@ export class IncidentRecorderApp {
     $("saveDraftBtn").addEventListener("click", () => this.saveDraft());
     $("saveHistoryBtn").addEventListener("click", () => this.saveToHistory());
     $("resetWorkspaceBtn").addEventListener("click", () => this.resetWorkspace());
+    $("newIncidentBtn").addEventListener("click", () => { this.showPage("recorder"); this.resetWorkspace(); });
     $("applyRoutingTemplateBtn").addEventListener("click", () => this.applyRoutingTemplate());
     $("resetDetailedBtn").addEventListener("click", () => this.resetDetailedTemplate());
     $("resetWorkBtn").addEventListener("click", () => this.resetWorkNotes());

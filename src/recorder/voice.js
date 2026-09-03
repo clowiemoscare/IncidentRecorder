@@ -11,7 +11,7 @@ export class VoiceController {
     this.restartAttempts = 0;
     this.pendingInterim = "";
     this.tokenEndpoint = "";
-    this.providerPreference = "";
+    this.providerPreference = "browser";
     this.activeProvider = "";
   }
 

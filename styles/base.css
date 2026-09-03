@@ -31,13 +31,15 @@ p { color: var(--muted); }
 code { color: #c7dbff; }
 .topbar { position: sticky; top: 0; z-index: 20; min-height: 68px; display: grid; grid-template-columns: minmax(220px,1fr) auto minmax(120px,1fr); align-items: center; gap: 16px; padding: 10px 24px; border-bottom: 1px solid rgba(94,118,148,.25); background: rgba(7,17,31,.92); backdrop-filter: blur(18px); }
 .brand { display: flex; align-items: center; gap: 10px; }
-.brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(145deg, #1e56a8, #4f8cff); font-weight: 900; }
+.brand-mark { display: grid; place-items: center; min-width: 52px; height: 38px; padding: 0 8px; border-radius: 11px; background: linear-gradient(145deg, #1e56a8, #4f8cff); font-weight: 900; font-size: 12px; letter-spacing: .04em; }
 .brand strong { display: block; font-size: 16px; }
 .brand small { color: var(--muted); }
 .main-nav { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: #091725; border: 1px solid var(--border); }
 .nav-button { border: 0; border-radius: 9px; padding: 8px 14px; background: transparent; color: var(--muted); }
 .nav-button.active { background: #16263b; color: var(--text); }
-.save-status { justify-self: end; color: var(--muted); font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; }
+.topbar-actions { justify-self: end; display: flex; align-items: center; gap: 8px; }
+.save-status { color: var(--muted); font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; }
+.header-new-incident { white-space: nowrap; }
 .shell { width: min(1580px, calc(100% - 28px)); margin: 24px auto 60px; }
 .page { display: none; }
 .page.active { display: block; }
@@ -64,6 +66,7 @@ code { color: #c7dbff; }
   .main-nav { order: 3; grid-column: 1 / -1; justify-content: stretch; }
   .nav-button { flex: 1; }
   .brand small, .save-status { display: none; }
+  .topbar-actions { justify-self: end; }
   .shell { width: min(100% - 18px, 1580px); margin-top: 14px; }
   .page-heading, .workflow-header { align-items: flex-start; flex-direction: column; }
 }

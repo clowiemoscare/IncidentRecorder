@@ -52,6 +52,7 @@ export function createLiveSession(data = {}) {
     checkpointIndex: Math.max(0, Number(data.checkpointIndex || 0) || 0),
     snapshotRoughNotes: String(data.snapshotRoughNotes || ""),
     lastGeneratedAt: text(data.lastGeneratedAt),
+    lastTicketType: ["initial", "final"].includes(data.lastTicketType) ? data.lastTicketType : "",
     lastAnalysis: snapshotNumber ? normalizeSessionAnalysis(data.lastAnalysis || {}) : null,
     latestUpdate: String(data.latestUpdate || "")
   };
@@ -122,7 +123,7 @@ export function analysisDelta(previousAnalysis, nextAnalysis) {
   };
 }
 
-export function advanceSnapshot(session, { roughNotes, analysis, latestUpdate = "", generatedAt = new Date().toISOString() } = {}) {
+export function advanceSnapshot(session, { roughNotes, analysis, latestUpdate = "", generatedAt = new Date().toISOString(), ticketType = "" } = {}) {
   const previous = createLiveSession(session);
   const snapshotRoughNotes = String(roughNotes || "");
   return {
@@ -130,6 +131,7 @@ export function advanceSnapshot(session, { roughNotes, analysis, latestUpdate = 
     checkpointIndex: snapshotRoughNotes.length,
     snapshotRoughNotes,
     lastGeneratedAt: generatedAt,
+    lastTicketType: ["initial", "final"].includes(ticketType) ? ticketType : previous.lastTicketType,
     lastAnalysis: normalizeSessionAnalysis(analysis || {}),
     latestUpdate: String(latestUpdate || "")
   };
