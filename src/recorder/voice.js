@@ -152,8 +152,18 @@ export class VoiceController {
     this.starting = true;
     this.emit("onState", "reconnecting");
     this.emit("onStatus", "Starting browser speech recognition (no Deepgram)…");
-    this.recognition.start();
-    return "browser";
+    try {
+      this.recognition.start();
+      return "browser";
+    } catch (error) {
+      this.starting = false;
+      this.listening = false;
+      this.shouldRestart = false;
+      this.activeProvider = "";
+      this.emit("onState", "stopped");
+      this.emit("onStatus", "Browser speech recognition could not start. Click Start to try again.");
+      throw new Error(`Browser speech recognition could not start: ${error?.message || "start failed"}`);
+    }
   }
 
   async start() {

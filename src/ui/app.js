@@ -27,7 +27,7 @@ import { generateTicketModel, renderTicketText } from "../ticket/generator.js";
 import { analyzeLocally } from "../ticket/local-analyzer.js";
 import { GEN2_RESET_TEMPLATE, STANDARD_RESET_TEMPLATE, renderDetailedDescription } from "../ticket/templates.js";
 import { cleanNotes, sentence } from "../ticket/text.js";
-import { advanceSnapshot, createLiveSession, mergeIncrementalAnalysis, notesSinceSnapshot, wordCount } from "../ticket/session.js";
+import { advanceSnapshot, createLiveSession, mergeIncrementalAnalysis, notesSinceSnapshot, snapshotCompatibility, wordCount } from "../ticket/session.js";
 import { $, $$, copyText, downloadText, escapeHtml } from "./dom.js";
 
 const STANDARD_WORK_NOTES_TEMPLATE = `Issue:\n\nTroubleshooting Steps:\n\nResolution:\n\nReason for Escalation:\n`;
@@ -294,6 +294,7 @@ export class IncidentRecorderApp {
     }
     if (!this.dirty.work) $("workNotes").value = this.workNotesTemplate();
     this.syncGeneratedOutput();
+    this.updateSnapshotStatus();
     this.setSaveStatus("Unsaved changes");
   }
 
@@ -302,6 +303,7 @@ export class IncidentRecorderApp {
     this.dirty.detail = false;
     $("templateNotice").hidden = true;
     this.syncGeneratedOutput();
+    this.setSaveStatus("Unsaved changes");
     this.showToast("Recommended routing template applied.");
   }
 
@@ -316,6 +318,7 @@ export class IncidentRecorderApp {
     $("templateNotice").hidden = true;
     $("templateChoiceDialog").close();
     this.syncGeneratedOutput();
+    this.setSaveStatus("Unsaved changes");
     this.showToast(family === "gen2" ? "KeepStock Gen2 template restored." : "Standard template restored.");
   }
 
@@ -323,6 +326,7 @@ export class IncidentRecorderApp {
     $("workNotes").value = this.workNotesTemplate();
     this.dirty.work = true;
     this.syncGeneratedOutput();
+    this.setSaveStatus("Unsaved changes");
     this.showToast("Work Notes template restored.");
   }
 
@@ -418,12 +422,24 @@ export class IncidentRecorderApp {
       status.textContent = "No ticket generated yet. Generate can create an Initial ticket while troubleshooting continues, or a Final ticket when the work is complete.";
       return;
     }
-    const newNotes = notesSinceSnapshot($("newRawNotes")?.value || "", this.liveSession);
+    const currentNotes = $("newRawNotes")?.value || "";
+    const compatibility = snapshotCompatibility(currentNotes, this.liveSession, $("newCategory")?.value || "", $("newSubcategory")?.value || "");
+    const newNotes = notesSinceSnapshot(currentNotes, this.liveSession);
     const words = wordCount(newNotes);
     const time = this.liveSession.lastGeneratedAt
       ? new Date(this.liveSession.lastGeneratedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
       : "";
     const type = this.liveSession.lastTicketType === "final" ? "Final ticket" : "Initial ticket";
+    if (!compatibility.compatible && ["routing_changed", "earlier_notes_changed", "legacy_snapshot"].includes(compatibility.reason)) {
+      status.dataset.state = "new";
+      const reason = compatibility.reason === "routing_changed"
+        ? "Routing changed after the last generation"
+        : compatibility.reason === "earlier_notes_changed"
+          ? "Earlier Rough Notes changed after the last generation"
+          : "This older draft needs one full refresh";
+      status.textContent = `${type}${time ? ` generated ${time}` : ""} · ${reason}. Final generation will safely reanalyze all current Rough Notes.`;
+      return;
+    }
     status.dataset.state = words ? "new" : "captured";
     status.textContent = `${type}${time ? ` generated ${time}` : ""} · ${words} new ${words === 1 ? "word" : "words"} since generation.${this.liveSession.lastTicketType === "initial" ? " Recording and troubleshooting can continue." : ""}`;
   }
@@ -467,10 +483,22 @@ export class IncidentRecorderApp {
         analysis = normalizeAiAnalysis(result.analysis, fallback);
         source = result.model || "Cloudflare Workers AI";
       } catch (error) {
-        console.warn("Workers AI unavailable; local analyzer used", error);
-        this.aiReadiness = { checkedAt: Date.now(), status: "unknown", message: `Cloudflare AI unavailable: ${error.message || "request failed"}` };
-        this.setAiConfigNotice("unknown", `Cloudflare AI was unavailable. The local fallback analyzer was used for this ${mode === "update" ? "ticket update" : "ticket"}.`);
-        this.showToast(`Cloudflare AI unavailable; local fallback used. ${error.message || ""}`.trim(), "warning");
+        console.warn("Workers AI request failed; local analyzer used", error);
+        const status = Number(error?.status || 0);
+        if (status === 413) {
+          // Request-size protection is not an AI configuration failure. Keep the
+          // readiness state intact so the next smaller request can use AI normally.
+          this.setAiConfigNotice("ready", "Cloudflare AI is configured. This request exceeded the safe AI size limit, so the local fallback analyzer was used.");
+          this.showToast(`AI request was too large; local fallback used. ${error.message || ""}`.trim(), "warning");
+        } else if (status === 429) {
+          this.aiReadiness = { checkedAt: 0, status: "unknown", message: "Cloudflare AI is temporarily rate-limited or out of allocation." };
+          this.setAiConfigNotice("unknown", "Cloudflare AI is temporarily rate-limited or out of allocation. The local fallback analyzer was used.");
+          this.showToast("Cloudflare AI is temporarily limited; local fallback used.", "warning");
+        } else {
+          this.aiReadiness = { checkedAt: Date.now(), status: "unknown", message: `Cloudflare AI unavailable: ${error.message || "request failed"}` };
+          this.setAiConfigNotice("unknown", `Cloudflare AI was unavailable. The local fallback analyzer was used for this ${mode === "update" ? "ticket update" : "ticket"}.`);
+          this.showToast(`Cloudflare AI unavailable; local fallback used. ${error.message || ""}`.trim(), "warning");
+        }
       }
     } else {
       this.showToast("Cloudflare AI is not configured; local fallback used.", "warning");
@@ -492,9 +520,16 @@ export class IncidentRecorderApp {
     if (!selectedType) return null;
 
     const hasPreviousAnalysis = Boolean(this.liveSession.snapshotNumber && this.liveSession.lastAnalysis);
-    const internalMode = selectedType === "final" && hasPreviousAnalysis ? "update" : "initial";
-    const previousAnalysis = internalMode === "update" ? this.liveSession.lastAnalysis : null;
-    const notesForAnalysis = internalMode === "update"
+    const compatibility = snapshotCompatibility(
+      rawWorkspaceNotes,
+      this.liveSession,
+      $("newCategory").value,
+      $("newSubcategory").value
+    );
+    const useIncrementalUpdate = selectedType === "final" && hasPreviousAnalysis && compatibility.compatible;
+    const internalMode = useIncrementalUpdate ? "update" : "initial";
+    const previousAnalysis = useIncrementalUpdate ? this.liveSession.lastAnalysis : null;
+    const notesForAnalysis = useIncrementalUpdate
       ? notesSinceSnapshot(rawWorkspaceNotes, this.liveSession)
       : rawWorkspaceNotes.trim();
 
@@ -514,7 +549,9 @@ export class IncidentRecorderApp {
       ? "Analyzing the Initial ticket snapshot…"
       : internalMode === "update" && notesForAnalysis
         ? "Analyzing new troubleshooting and building the Final ticket…"
-        : "Building the Final ticket from the latest analysis…");
+        : hasPreviousAnalysis && !compatibility.compatible
+          ? "Earlier notes or routing changed. Reanalyzing all current Rough Notes for a safe Final ticket…"
+          : "Building the Final ticket from the current Rough Notes…");
 
     try {
       const fields = this.extractDetails({ notify: false, updateTemplate: true, rawNotes: rawWorkspaceNotes });
@@ -552,6 +589,8 @@ export class IncidentRecorderApp {
       this.liveSession = advanceSnapshot(this.liveSession, {
         roughNotes: rawWorkspaceNotes,
         analysis,
+        categoryId: $("newCategory").value,
+        subcategoryId: $("newSubcategory").value,
         latestUpdate: "",
         ticketType: selectedType
       });
@@ -661,7 +700,7 @@ export class IncidentRecorderApp {
     if (!$("newTitle").value.trim()) return;
     this.syncGeneratedOutput();
     const item = {
-      id: `IR-${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}`,
+      id: `IR-${crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}`,
       createdAt: new Date().toISOString(),
       shortDescription: $("newTitle").value.trim(),
       category: categoryLabel($("newCategory").value),
@@ -854,13 +893,14 @@ export class IncidentRecorderApp {
     }
 
     $("newRawNotes").addEventListener("input", () => { this.setSaveStatus("Unsaved changes"); this.updateSnapshotStatus(); });
-    $("newTitle").addEventListener("input", () => { this.dirty.short = true; this.syncGeneratedOutput(); });
-    $("detailedDescription").addEventListener("input", () => { this.dirty.detail = true; this.syncGeneratedOutput(); });
-    $("workNotes").addEventListener("input", () => { this.dirty.work = true; this.syncGeneratedOutput(); });
+    $("newTitle").addEventListener("input", () => { this.dirty.short = true; this.syncGeneratedOutput(); this.setSaveStatus("Unsaved changes"); });
+    $("detailedDescription").addEventListener("input", () => { this.dirty.detail = true; this.syncGeneratedOutput(); this.setSaveStatus("Unsaved changes"); });
+    $("workNotes").addEventListener("input", () => { this.dirty.work = true; this.syncGeneratedOutput(); this.setSaveStatus("Unsaved changes"); });
 
     $("cleanNotesBtn").addEventListener("click", () => {
       $("newRawNotes").value = cleanNotes($("newRawNotes").value);
       this.updateSnapshotStatus();
+      this.setSaveStatus("Unsaved changes");
       this.showToast("Rough Notes cleaned without changing ticket fields.");
     });
     $("extractDetailsBtn").addEventListener("click", () => this.extractDetails());

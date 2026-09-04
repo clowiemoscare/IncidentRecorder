@@ -60,8 +60,16 @@ export function saveHistory(history) {
   return writeJSON(KEYS.history, history.slice(0, 50));
 }
 
+const LEGACY_KEYS = Object.freeze([
+  "incidentRecorderDashboardV1",
+  "incidentRecorderSettingsV11",
+  "incidentRecorderSettingsV11TemplateRouting",
+  "incidentRecorderDraftsV11TemplateRouting",
+  "incidentRecorderDraftsV1"
+]);
+
 export function clearStoredData() {
-  Object.values(KEYS).forEach((key) => localStorage.removeItem(key));
+  [...Object.values(KEYS), ...LEGACY_KEYS].forEach((key) => localStorage.removeItem(key));
 }
 
 function migrateFormData(data, settings) {

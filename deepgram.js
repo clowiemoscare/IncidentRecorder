@@ -26,6 +26,7 @@
     "RoadNetID",
     "OMS",
     "Cradlepoint",
+    "Molex",
     "Badge Reader",
     "RFID",
     "IMEI",
@@ -45,6 +46,8 @@
     "VMV",
     "OKTA",
     "ServiceNow",
+    "Job Aid",
+    "Microsoft Teams",
     "SNOW",
     "Coil Vending Unit",
     "Locker Vending Unit",
@@ -352,9 +355,11 @@
   async function pause() {
     paused = true;
     shouldRun = false;
-    sessionId += 1;
     clearReconnectTimer();
+    // Flush while the recorder still belongs to the active session. Invalidating
+    // sessionId first would cause ondataavailable to discard this final chunk.
     await flushCurrentAudio();
+    sessionId += 1;
     stopMediaRecorder();
     const ws = socket;
     if (ws?.readyState === WebSocket.OPEN) {
@@ -371,9 +376,11 @@
   async function stop() {
     shouldRun = false;
     paused = false;
-    sessionId += 1;
     clearReconnectTimer();
+    // Flush before invalidating the active session so the last buffered audio
+    // chunk is still accepted by ondataavailable.
     await flushCurrentAudio();
+    sessionId += 1;
     stopMediaRecorder();
     const ws = socket;
     if (ws?.readyState === WebSocket.OPEN) {

@@ -1,6 +1,6 @@
 # IncidentRecorder domain knowledge reference
 
-IncidentRecorder v2.8 uses two team-provided reference sources to improve analysis quality:
+IncidentRecorder v2.9 uses two team-provided reference sources to improve analysis quality:
 
 1. **KeepStock glossary** - curated into conservative terminology normalization, Deepgram keyterms, caller-role interpretation, and the Workers AI domain glossary.
 2. **Historical ServiceNow ticket export** - reviewed as a representative, cross-category sample to identify strong documentation patterns. No customer-specific names, email addresses, account data, ticket numbers, or raw historical ticket text are bundled into IncidentRecorder.
@@ -9,7 +9,7 @@ IncidentRecorder v2.8 uses two team-provided reference sources to improve analys
 
 Historical tickets are **style references only**. They teach the analyzer to preserve granular troubleshooting actions and use KeepStock terminology consistently. They never become evidence for a current incident.
 
-The v2.8 reference patterns cover examples such as:
+The v2.9 reference patterns cover examples such as:
 
 - MobileCast login guidance with separate Device ID / RACK ID / password instructions.
 - MRF and PRF fulfillment without claiming the requested maintenance or data change already occurred.

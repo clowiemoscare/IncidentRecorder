@@ -1,6 +1,14 @@
 import { cleanNotes, normalizeTerms, sentence, splitTranscript, stripIssuePrefix, uniqueExact } from "./text.js";
 
 const CHATTER_PATTERNS = [
+  /^\d{1,2}-\d{1,2}-\d{4}\s+\d{1,2}:\d{2}:\d{2}\s+(?:AM|PM)\s+-\s+.+?\s+\(Work notes\)$/i,
+  /^incident created from interaction\b/i,
+  /^attachment:.*\bhas been attached\.?$/i,
+  /^this ticket has been open\b/i,
+  /^(?:ended|ending) call\.?$/i,
+  /^open ticket\.?$/i,
+  /^caller verification confirmed before the following steps/i,
+  /^(?:resolution|troubleshooting(?: steps)?|reason for escalation)\s*:\s*$/i,
   /\bhow can i help you\b/i,
   /\b(?:first and last name|confirm your .*id|what(?:'s| is) the account number|who was the contact|what email address|what user id do you use)\b/i,
   /\b(?:bear with me|just a second|just a moment|let me look (?:you|this) up|let me look this up real quick|you hear me|can you hear me)\b/i,
@@ -16,6 +24,17 @@ const ACTION_VERBS = /\b(?:check(?:ed|ing)?|confirm(?:ed|ing)?|verif(?:y|ied|yin
 const FINDING_TERMS = /\b(?:error|failed|failure|unable|offline|online|conflict|not assigned|guest user|admin user|no power|has power|packet loss|prompt|access|limit|dispensing|communication|connected|disconnected|returned to the login screen|device id|rack id|no password|password is blank|initialization|initialized|destination host unreachable|valid ip configuration|dhcp|mac address error|driver|drivers|hardware changes|auto detection|com port|test connection|network configuration|green|red|no activity)\b/i;
 
 const CONDITIONAL_PREFIX = /^(?:if\b|if it\b|if he\b|if she\b|if they\b|if the\b|if that\b|if this\b|then if\b|in case\b|(?:rep|osr|oss|caller|customer)\s+(?:to|will)\b)/i;
+
+const FUTURE_OUTCOME_PATTERN = /\b(?:will|would|should|going to|plans? to|needs? to|to contact|to call|to replace|to follow up|to complete|to submit|to reset|to install|to update|awaiting|once|after (?:the|they|he|she|it|this|that)[^.\n]{0,80}\bwill)\b/i;
+const GENERIC_RESOLUTION_PATTERN = /^(?:(?:issue|ticket|incident)\s+)?(?:resolved|fixed|closed)$|^closing\s+(?:ticket|incident)?\s*resolved$/i;
+
+function isConcreteResolutionLine(line) {
+  const text = normalizeTerms(line).trim();
+  if (!text || CONDITIONAL_PREFIX.test(text) || FUTURE_OUTCOME_PATTERN.test(text)) return false;
+  if (GENERIC_RESOLUTION_PATTERN.test(text.replace(/[.!]+$/g, "").trim())) return false;
+  // Require a concrete outcome/finding rather than a status word by itself.
+  return /\b(?:working now|successful(?:ly)?|restored|confirmed[^.\n]{0,120}access|can now access|now able to access|without error|communication[^.\n]{0,80}restored|logged (?:in|back in)|signed in|dispens(?:e|ed|ing)[^.\n]{0,80}(?:success|correct|work)|completed[^.\n]{0,100}(?:success|without error))\b/i.test(text);
+}
 
 export function inferCallerRole(rawNotes) {
   const text = normalizeTerms(rawNotes);
@@ -92,6 +111,8 @@ function canonicalizeAction(line, callerRole = "caller") {
 }
 
 function inferIssue(lines) {
+  const explicitIssue = lines.find((line) => /^(?:issue|problem|reason for (?:the )?call)\s*[:\-]\s*\S+/i.test(line));
+  if (explicitIssue) return stripIssuePrefix(explicitIssue);
   const joined = lines.join(" ");
   if (/\bnew tray harness\b|\b(?:order|ordering|replace|replacement)\b[^.]{0,80}\btray harness\b/i.test(joined)) return "Ordering new tray harness";
   if (/\b(?:Punch Out|Jaggaer)\b/i.test(joined) && /\b(?:pending order|approve|approval)\b/i.test(joined)) return "Unable to approve KeepStock pending order";
@@ -100,6 +121,39 @@ function inferIssue(lines) {
   if (/password reset/i.test(joined)) return "KeepStock password reset";
   const candidate = lines.find((line) => !isChatter(line) && !/^account number\b/i.test(line));
   return stripIssuePrefix(candidate || "Issue not identified from rough notes");
+}
+
+function normalizePartToken(value) {
+  let token = String(value || "").trim().replace(/^[-:]+|[.,;:]+$/g, "");
+  if (!/\d/.test(token)) return "";
+  // Historical notes sometimes join a human-readable descriptor to the code,
+  // e.g. "SA615-Cage Nut". Preserve legitimate code suffixes, but trim a
+  // mixed-case word that is clearly acting as a descriptor.
+  token = token.replace(/-([A-Z][a-z]{2,})$/, "");
+  return token;
+}
+
+function extractExplicitPart(rawNotes) {
+  const lines = String(rawNotes || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const candidates = [];
+  for (const line of lines) {
+    if (/\b(?:incorrect|wrong|old|error)\b[^\n]{0,40}\bpart\s*(?:number|#|no\.?)/i.test(line)) continue;
+
+    const named = line.match(/\bpart\s*(?:number|#|no\.?)\s+for\s+(?:the\s+)?([A-Za-z][A-Za-z0-9 /_-]{1,60}?)\s+(?:is|was|:)\s*[-:]?\s*([A-Za-z0-9][A-Za-z0-9-]{2,})\b/i);
+    if (named) {
+      const number = normalizePartToken(named[2]);
+      if (number) candidates.push({ name: named[1].trim().replace(/^(?:a|an|the)\s+/i, ""), number, preferred: /\bcorrect\b/i.test(line) });
+      continue;
+    }
+
+    const simple = line.match(/\b(?:correct\s+)?part\s*(?:number|#|no\.?)\s*(?:is|was|:|-)?\s*[-:]?\s*([A-Za-z0-9][A-Za-z0-9-]{2,})\b/i);
+    if (simple) {
+      const number = normalizePartToken(simple[1]);
+      if (number) candidates.push({ name: "", number, preferred: /\bcorrect\b/i.test(line) });
+    }
+  }
+  if (!candidates.length) return { name: "", number: "" };
+  return [...candidates].reverse().find((candidate) => candidate.preferred) || candidates[candidates.length - 1];
 }
 
 function partsResolution(rawNotes, steps) {
@@ -112,9 +166,12 @@ function partsResolution(rawNotes, steps) {
   const prfContext = /\b(?:PRF|Parts Request Form)\b/i.test(combined);
   const formCompleted = /\b(?:completed|submitted)\b[^.\n]{0,60}\b(?:MRF|Maintenance Request Form|PRF|Parts Request Form|form)\b/i.test(combined)
     || /\b(?:MRF|Maintenance Request Form|PRF|Parts Request Form|form)\b[^.\n]{0,60}\b(?:completed|submitted)\b/i.test(combined);
-  const match = rawNotes.match(/\bpart\s*(?:number|#|no\.?)\s*(?:for\s+(?:the\s+)?)?([A-Za-z][A-Za-z0-9 /_-]{1,60}?)\s+(?:is|was)\s+([A-Z0-9-]{3,})\b/i);
-  const partName = match?.[1]?.trim().replace(/^(?:a|an|the)\s+/i, "") || "";
-  const partNumber = match?.[2]?.trim() || (combined.match(/\b([A-Z]{1,6}[A-Z0-9-]*\d[A-Z0-9-]*)\b/)?.[1] || "");
+  const explicitPart = extractExplicitPart(rawNotes);
+  const partName = explicitPart.name;
+  // Never guess a part number from a generic alphanumeric identifier such as an
+  // interaction number, Device ID, RACK ID, or storage code. It must be explicitly
+  // introduced as a part number in the Rough Notes.
+  const partNumber = explicitPart.number;
   if (!linkDone && !partNumber && !formCompleted) return "";
   const pieces = [];
   if (linkDone) {
@@ -137,15 +194,18 @@ function inferResolution(rawNotes, steps, conditionalNextSteps, callerRole = "ca
   if (/\bupdated\b.*\brole\b.*\badmin\b/i.test(joined) && /\bkeepstock web admin\b/i.test(joined)) {
     return "Updated the user's role to Admin and granted the required Vending and Inventory Management and KeepStock Web Admin access.";
   }
-  if (/\bpower\s+cycl/i.test(joined) && /\b(?:reseat|cable)/i.test(joined) && /\b(?:resolved|communication.*restored|confirm.*resolved)/i.test(joined)) {
+  if (/\bpower\s+cycl/i.test(joined) && /\b(?:reseat|cable)/i.test(joined) && /\b(?:communication[^.\n]{0,100}restored|confirm(?:ed)?[^.\n]{0,120}resolved|login screen[^.\n]{0,80}returned[^.\n]{0,80}(?:logged|verified)|logged (?:in|back in)[^.\n]{0,100}(?:verified|communication|working))/i.test(joined)) {
     return "Resolved the machine communication issue by reseating the cable connections and power cycling the PC; access was verified afterward.";
   }
   if (/\btrained\b|\bguided\b|\binstructed\b/i.test(joined) && /\b(?:create user|assign.*program|program management)/i.test(joined)) {
     return "Provided the requested KeepStock Web training and guidance.";
   }
-  if (/\b(?:Punch Out|Jaggaer)\b/i.test(joined) && /\b(?:pending order|approve|approval)\b/i.test(joined) && /\b(?:guide|guided|explain|explained|instruct|instructed|navigate)\b/i.test(joined)) {
+  if (/\b(?:Punch Out|Jaggaer)\b/i.test(joined) && /\b(?:pending order|approve|approval)\b/i.test(joined) && /\b(?:guide|guided|explain|explained|instruct|instructed|navigate|walked)\b/i.test(joined)) {
     const audience = callerRole === "rep" ? "rep" : callerRole === "customer" ? "customer" : "caller";
-    return `Guided the ${audience} through accessing and approving KeepStock pending orders through Punch Out and clarified that the order should not be accessed directly through Grainger.com.`;
+    const approvalCompleted = /\b(?:order (?:was )?approved|approved (?:the )?order|order approved|submitted (?:the )?(?:cart|order)[^.\n]{0,60}success|approval completed|approved successfully)\b/i.test(joined);
+    const guidanceRequest = /\b(?:needed? guidance|needs? guidance|how to approve|first time[^.\n]{0,80}approv|needed? to know how|needs? to know how|walk(?:ed)? through|guide(?:d)?[^.\n]{0,240}(?:approv\w*|pending orders?))\b/i.test(joined);
+    if (approvalCompleted) return `Guided the ${audience} through the Punch Out approval process and confirmed the pending order was approved.`;
+    if (guidanceRequest) return `Provided the ${audience} guidance on accessing and approving KeepStock pending orders through Punch Out.`;
   }
   if (/\bempty locations?\b/i.test(joined) && /\bdelet(?:e|ed|ing)\b/i.test(joined) && /\b(?:reboot(?:ed|ing)?|restart(?:ed|ing)?)\b/i.test(joined) && /\bwithout error\b/i.test(joined)) {
     return "Removed the EMPTY locations, rebooted the application, and verified items could be added without error.";
@@ -154,7 +214,7 @@ function inferResolution(rawNotes, steps, conditionalNextSteps, callerRole = "ca
     const audience = callerRole === "rep" ? "rep" : callerRole === "customer" ? "customer" : "caller";
     return `${audience[0].toUpperCase()}${audience.slice(1)} signed into Mobile Cast successfully.`;
   }
-  const explicit = splitTranscript(rawNotes).find((line) => /\b(?:resolved|fixed|working now|successful(?:ly)?|restored|confirmed.*access|can now access|now able to access|without error)\b/i.test(line) && !CONDITIONAL_PREFIX.test(line));
+  const explicit = splitTranscript(rawNotes).find((line) => isConcreteResolutionLine(line));
   if (explicit) return sentence(explicit);
   if (conditionalNextSteps.length && !/\b(?:completed|successful|resolved|fixed|provided|sent|updated|trained|guided)\b/i.test(joined)) return "";
   return "";
@@ -174,6 +234,8 @@ export function analyzeLocally(rawNotes) {
       if (ACTION_VERBS.test(normalized) || FINDING_TERMS.test(normalized)) conditionalNextSteps.push(sentence(normalized));
       continue;
     }
+    // Issue statements establish the problem; they are not troubleshooting actions.
+    if (/^(?:issue|problem|reason for (?:the )?call)\s*[:\-]/i.test(normalized)) continue;
     if (!isMeaningfulAction(normalized)) continue;
     for (const clause of splitCompoundActions(normalized)) {
       if (!isMeaningfulAction(clause)) continue;

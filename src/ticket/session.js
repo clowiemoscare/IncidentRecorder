@@ -53,6 +53,8 @@ export function createLiveSession(data = {}) {
     snapshotNumber,
     checkpointIndex: Math.max(0, Number(data.checkpointIndex || 0) || 0),
     snapshotRoughNotes: String(data.snapshotRoughNotes || ""),
+    snapshotCategoryId: text(data.snapshotCategoryId),
+    snapshotSubcategoryId: text(data.snapshotSubcategoryId),
     lastGeneratedAt: text(data.lastGeneratedAt),
     lastTicketType: ["initial", "final"].includes(data.lastTicketType) ? data.lastTicketType : "",
     lastAnalysis: snapshotNumber ? normalizeSessionAnalysis(data.lastAnalysis || {}) : null,
@@ -65,28 +67,31 @@ export function wordCount(value) {
   return words ? words.length : 0;
 }
 
-function commonPrefixBoundary(previous, current) {
-  const max = Math.min(previous.length, current.length);
-  let index = 0;
-  while (index < max && previous[index] === current[index]) index += 1;
-  if (index === max) return index;
-  const newline = current.lastIndexOf("\n", index);
-  return newline >= 0 ? newline + 1 : 0;
+export function snapshotCompatibility(currentRoughNotes, session, categoryId = "", subcategoryId = "") {
+  const current = String(currentRoughNotes || "");
+  const live = createLiveSession(session);
+  if (!live.snapshotNumber || !live.lastAnalysis) return { compatible: false, reason: "no_snapshot" };
+  // Older drafts did not store the route used by the snapshot. Force one full
+  // reanalysis rather than combining analysis from an unknown route.
+  if (!live.snapshotCategoryId || !live.snapshotSubcategoryId) return { compatible: false, reason: "legacy_snapshot" };
+  if (text(categoryId) !== live.snapshotCategoryId || text(subcategoryId) !== live.snapshotSubcategoryId) {
+    return { compatible: false, reason: "routing_changed" };
+  }
+  if (!live.snapshotRoughNotes || !current.startsWith(live.snapshotRoughNotes)) {
+    return { compatible: false, reason: "earlier_notes_changed" };
+  }
+  return { compatible: true, reason: "append_only" };
 }
 
 export function notesSinceSnapshot(currentRoughNotes, session) {
   const current = String(currentRoughNotes || "");
   const live = createLiveSession(session);
   if (!live.snapshotNumber) return current.trim();
-
   const previous = live.snapshotRoughNotes;
   if (previous && current.startsWith(previous)) return current.slice(previous.length).trim();
-
-  // If an earlier note was edited after the snapshot, include the changed trailing
-  // section plus anything appended afterward so the previous structured analysis
-  // can be reconciled without re-sending the whole transcript.
-  const start = previous ? commonPrefixBoundary(previous, current) : Math.min(live.checkpointIndex, current.length);
-  return current.slice(start).trim();
+  // Earlier notes were edited/deleted. Returning the complete current notes is
+  // safer than returning a partial suffix that cannot remove stale AI facts.
+  return current.trim();
 }
 
 export function mergeIncrementalAnalysis(previousAnalysis, incrementalAnalysis) {
@@ -102,7 +107,7 @@ export function mergeIncrementalAnalysis(previousAnalysis, incrementalAnalysis) 
     conditionalNextSteps: uniqueExact([...previous.conditionalNextSteps, ...incoming.conditionalNextSteps]),
     resolution: incoming.resolution || previous.resolution,
     rootCause: incoming.rootCause || previous.rootCause,
-    resolved: Boolean(previous.resolved || incoming.resolved || incoming.resolution),
+    resolved: Boolean(previous.resolved || incoming.resolved),
     cleanedNotes: [previous.cleanedNotes, incoming.cleanedNotes].filter(Boolean).join("\n")
   };
 }
@@ -127,13 +132,15 @@ export function analysisDelta(previousAnalysis, nextAnalysis) {
   };
 }
 
-export function advanceSnapshot(session, { roughNotes, analysis, latestUpdate = "", generatedAt = new Date().toISOString(), ticketType = "" } = {}) {
+export function advanceSnapshot(session, { roughNotes, analysis, categoryId = "", subcategoryId = "", latestUpdate = "", generatedAt = new Date().toISOString(), ticketType = "" } = {}) {
   const previous = createLiveSession(session);
   const snapshotRoughNotes = String(roughNotes || "");
   return {
     snapshotNumber: previous.snapshotNumber + 1,
     checkpointIndex: snapshotRoughNotes.length,
     snapshotRoughNotes,
+    snapshotCategoryId: text(categoryId),
+    snapshotSubcategoryId: text(subcategoryId),
     lastGeneratedAt: generatedAt,
     lastTicketType: ["initial", "final"].includes(ticketType) ? ticketType : previous.lastTicketType,
     lastAnalysis: normalizeSessionAnalysis(analysis || {}),

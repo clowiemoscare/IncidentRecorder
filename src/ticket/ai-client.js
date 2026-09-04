@@ -96,7 +96,11 @@ export async function analyzeWithWorkersAi({ tokenEndpoint, roughNotes, category
 
   let payload = {};
   try { payload = await response.json(); } catch { /* handled below */ }
-  if (!response.ok) throw new Error(payload?.error || `Workers AI analysis failed (${response.status})`);
+  if (!response.ok) {
+    const error = new Error(payload?.error || `Workers AI analysis failed (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
   if (!payload?.analysis || typeof payload.analysis !== "object") throw new Error("Workers AI returned no ticket analysis");
   return { analysis: payload.analysis, model: payload.model || "Workers AI" };
 }
@@ -116,6 +120,10 @@ export function normalizeAiAnalysis(analysis, fallback) {
     ? String(analysis.caller_role).toLowerCase()
     : (["rep", "customer", "caller"].includes(String(fallback?.callerRole || "").toLowerCase()) ? String(fallback.callerRole).toLowerCase() : "caller");
 
+  const resolved = typeof analysis?.resolved === "boolean"
+    ? analysis.resolved
+    : Boolean(fallback?.resolved);
+
   return {
     source: "ai",
     callerRole,
@@ -125,7 +133,7 @@ export function normalizeAiAnalysis(analysis, fallback) {
     conditionalNextSteps,
     resolution,
     rootCause,
-    resolved: Boolean(analysis?.resolved || resolution),
+    resolved,
     cleanedNotes: fallback?.cleanedNotes || ""
   };
 }
