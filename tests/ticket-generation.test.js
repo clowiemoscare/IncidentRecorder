@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { extractFields } from "../src/ticket/extractor.js";
 import { analyzeLocally } from "../src/ticket/local-analyzer.js";
-import { generateTicketModel } from "../src/ticket/generator.js";
+import { generateTicketModel, generateTicketUpdateModel } from "../src/ticket/generator.js";
 import { GEN2_RESET_TEMPLATE, STANDARD_RESET_TEMPLATE, renderDetailedDescription } from "../src/ticket/templates.js";
 import { subcategoryLabel } from "../src/config/ticket-routing.js";
 
@@ -44,6 +44,19 @@ test("conditional password reset stays conditional in local fallback", () => {
   assert.ok(analysis.conditionalNextSteps.some((step) => /password reset/i.test(step)));
   assert.doesNotMatch(analysis.resolution, /password reset/i);
   assert.match(analysis.resolution, /Admin/i);
+});
+
+test("Punch Out rep-guidance fixture detects rep role and preserves a high-recall local coverage checklist", () => {
+  const data = fixture("punchout-rep-guidance.json");
+  const analysis = analyzeLocally(data.roughNotes);
+  assert.equal(analysis.callerRole, data.expectedCallerRole);
+  assert.equal(analysis.issueSummary, data.expectedIssue);
+  assert.ok(analysis.troubleshootingSteps.length >= data.minimumCoverageCandidates, `expected at least ${data.minimumCoverageCandidates} coverage candidates, got ${analysis.troubleshootingSteps.length}`);
+  const combined = analysis.troubleshootingSteps.join(" ");
+  for (const expected of ["seven pending orders", "email notification", "Punch Out", "KeepStock Pending Orders", "KS number", "update", "remove", "submit", "Grainger.com"]) {
+    assert.match(combined, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+  assert.match(analysis.resolution, /Guided the rep/i);
 });
 
 test("standard reset template matches the new full standard template", () => {
@@ -298,4 +311,26 @@ test("manual Gen2 Root Cause remains authoritative over the AI root-cause sugges
   assert.match(ticket.workNotes, /^Root Cause: Confirmed incorrect billing group assignment$/m);
   assert.doesNotMatch(ticket.workNotes, /Likely billing group configuration mismatch/);
   assert.match(ticket.detailedDescription, /^Root Cause: Confirmed incorrect billing group assignment$/m);
+});
+
+
+test("ticket update model formats only incremental Work Notes", () => {
+  const update = generateTicketUpdateModel({
+    categoryId: "keepstock_seaga_cm",
+    subcategoryLabel: "Hardware issue: - Main harness",
+    fields: {},
+    analysis: {
+      issueSummary: "Machine not communicating",
+      troubleshootingSteps: ["Reseated the Molex cable.", "Power cycled the PC."],
+      conditionalNextSteps: [],
+      resolution: "Communication was restored.",
+      rootCause: "",
+      resolved: true
+    }
+  });
+  assert.match(update.workNotes, /Reseated the Molex cable/);
+  assert.match(update.workNotes, /Power cycled the PC/);
+  assert.match(update.workNotes, /Communication was restored/);
+  assert.doesNotMatch(update.fullText, /Short Description:/);
+  assert.doesNotMatch(update.fullText, /Detailed Description:/);
 });

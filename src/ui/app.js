@@ -460,7 +460,9 @@ export class IncidentRecorderApp {
           category: categoryLabel($("newCategory").value),
           subcategory: subcategoryLabel($("newCategory").value, $("newSubcategory").value),
           mode,
-          previousAnalysis
+          previousAnalysis,
+          coverageCandidates: localIncrement.troubleshootingSteps,
+          callerRoleHint: localIncrement.callerRole
         });
         analysis = normalizeAiAnalysis(result.analysis, fallback);
         source = result.model || "Cloudflare Workers AI";

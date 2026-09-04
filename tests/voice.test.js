@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { VoiceController } from "../src/recorder/voice.js";
 
-test("browser speech preference does not call Deepgram", async () => {
+test("browser speech is the default and does not call Deepgram", async () => {
   let deepgramStarts = 0;
   let browserStarts = 0;
 
@@ -33,21 +33,13 @@ test("browser speech preference does not call Deepgram", async () => {
 
   const controller = new VoiceController({});
   controller.setTokenEndpoint("https://example.workers.dev/token");
-  controller.setProviderPreference("browser");
+  assert.equal(controller.getProviderPreference(), "browser");
   const provider = await controller.start();
 
   assert.equal(provider, "browser");
   assert.equal(browserStarts, 1);
   assert.equal(deepgramStarts, 0);
   await controller.stop();
-  delete global.window;
-});
-
-test("voice recording requires an explicit transcription selection", async () => {
-  global.window = { location: { protocol: "https:" }, SpeechRecognition: null, webkitSpeechRecognition: null, IncidentRecorderDeepgram: null };
-  const controller = new VoiceController({});
-  assert.equal(controller.getProviderPreference(), "");
-  await assert.rejects(() => controller.start(), /Select a transcription method/i);
   delete global.window;
 });
 

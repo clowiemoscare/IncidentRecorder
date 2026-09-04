@@ -1,0 +1,6 @@
+{
+  "roughNotes": "The approver cannot see the KeepStock pending order directly on Grainger.com and needs to use their Punch Out account. I checked the account and found seven pending orders that need approval. I explained that approvers receive an email notification when a KeepStock pending order is ready. I guided the rep to open the customer's Punch Out system in Jaggaer, open the Grainger catalog, go to Account, and select KeepStock Pending Orders. I explained that the pending order summary has a search field where the KS number is entered. I explained that after searching the KS number, the order opens and the approver can update quantities, remove items, add the order to the cart, and submit the cart. I clarified that the approver does not need to register separately on Grainger.com and should not navigate directly to Grainger.com because the pending order will not appear there. If you guys need us to guide the customer because this is their first time approving an order, call us back and we can help the customer navigate the Punch Out account.",
+  "expectedCallerRole": "rep",
+  "expectedIssue": "Unable to approve KeepStock pending order",
+  "minimumCoverageCandidates": 7
+}

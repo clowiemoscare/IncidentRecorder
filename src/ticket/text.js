@@ -1,3 +1,5 @@
+import { normalizeKeepStockTerminology } from "../config/terminology.js";
+
 export function normalizeLine(text) {
   return String(text || "")
     .replace(/[\u2022\u00b7]/g, " ")
@@ -7,12 +9,8 @@ export function normalizeLine(text) {
 }
 
 export function normalizeTerms(text) {
-  return normalizeLine(text)
-    .replace(/\b(?:keep\s*stock|keeps\s*stock|keep\s*stop|keepstop|keepsake|keep\s*stake|keeps\s*up|keep\s*up)\b/gi, "KeepStock")
-    .replace(/\baccess\s+skip\b/gi, "access KeepStock")
-    .replace(/\bclear\s*spider\b/gi, "ClearSpider")
-    .replace(/\b(?:grainger|granger)\s*\.\s*com\b/gi, "Grainger.com")
-    .replace(/\bcurb\s+(?=(?:number|num|#|id)\b)/gi, "crib ");
+  return normalizeKeepStockTerminology(normalizeLine(text))
+    .replace(/\baccess\s+skip\b/gi, "access KeepStock");
 }
 
 export function sentence(text) {

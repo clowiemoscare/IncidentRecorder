@@ -1,3 +1,5 @@
+import { normalizeKeepStockTerminology } from "../config/terminology.js";
+
 export function workersAiEndpoint(tokenEndpoint) {
   const raw = String(tokenEndpoint || "").trim();
   if (!raw) return "";
@@ -59,6 +61,7 @@ function toWorkerAnalysis(analysis) {
   return {
     issue_summary: String(analysis.issueSummary || ""),
     account_number: String(analysis.accountNumber || ""),
+    caller_role: ["rep", "customer", "caller"].includes(String(analysis.callerRole || "").toLowerCase()) ? String(analysis.callerRole).toLowerCase() : "caller",
     troubleshooting_steps: Array.isArray(analysis.troubleshootingSteps) ? analysis.troubleshootingSteps : [],
     resolution: String(analysis.resolution || ""),
     root_cause: String(analysis.rootCause || ""),
@@ -67,11 +70,12 @@ function toWorkerAnalysis(analysis) {
   };
 }
 
-export async function analyzeWithWorkersAi({ tokenEndpoint, roughNotes, category, subcategory, mode = "initial", previousAnalysis = null, signal }) {
+export async function analyzeWithWorkersAi({ tokenEndpoint, roughNotes, category, subcategory, mode = "initial", previousAnalysis = null, coverageCandidates = [], callerRoleHint = "caller", signal }) {
   const endpoint = workersAiEndpoint(tokenEndpoint);
   if (!endpoint) throw new Error("Cloudflare Worker endpoint is not configured");
   if (!String(roughNotes || "").trim()) throw new Error(mode === "update" ? "Add new rough notes before generating a ticket update" : "Add rough notes before generating the ticket");
 
+  const normalizedRoughNotes = normalizeKeepStockTerminology(String(roughNotes || "")).trim();
   const analysisMode = mode === "update" ? "update" : "initial";
   const response = await fetch(endpoint, {
     method: "POST",
@@ -80,11 +84,13 @@ export async function analyzeWithWorkersAi({ tokenEndpoint, roughNotes, category
     cache: "no-store",
     signal,
     body: JSON.stringify({
-      rough_notes: String(roughNotes).trim(),
+      rough_notes: normalizedRoughNotes,
       category: String(category || ""),
       subcategory: String(subcategory || ""),
       analysis_mode: analysisMode,
-      previous_analysis: analysisMode === "update" ? toWorkerAnalysis(previousAnalysis) : null
+      previous_analysis: analysisMode === "update" ? toWorkerAnalysis(previousAnalysis) : null,
+      coverage_candidates: Array.isArray(coverageCandidates) ? coverageCandidates : [],
+      caller_role_hint: ["rep", "customer", "caller"].includes(String(callerRoleHint || "").toLowerCase()) ? String(callerRoleHint).toLowerCase() : "caller"
     })
   });
 
@@ -106,9 +112,13 @@ export function normalizeAiAnalysis(analysis, fallback) {
   const resolution = String(analysis?.resolution || fallback?.resolution || "").trim();
   const rootCause = String(analysis?.root_cause || fallback?.rootCause || "").trim();
   const accountNumber = String(analysis?.account_number || "").replace(/\D/g, "");
+  const callerRole = ["rep", "customer", "caller"].includes(String(analysis?.caller_role || "").toLowerCase())
+    ? String(analysis.caller_role).toLowerCase()
+    : (["rep", "customer", "caller"].includes(String(fallback?.callerRole || "").toLowerCase()) ? String(fallback.callerRole).toLowerCase() : "caller");
 
   return {
     source: "ai",
+    callerRole,
     issueSummary,
     accountNumber: /^\d{4,}$/.test(accountNumber) ? accountNumber : "",
     troubleshootingSteps: steps.length ? steps : (fallback?.troubleshootingSteps || []),
