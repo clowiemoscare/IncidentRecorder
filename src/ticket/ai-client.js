@@ -1,4 +1,5 @@
 import { normalizeKeepStockTerminology } from "../config/terminology.js";
+import { limitSentences } from "./text.js";
 
 export function workersAiEndpoint(tokenEndpoint) {
   const raw = String(tokenEndpoint || "").trim();
@@ -113,7 +114,7 @@ export function normalizeAiAnalysis(analysis, fallback) {
     ? analysis.conditional_next_steps.map((item) => String(item || "").trim()).filter(Boolean)
     : [];
   const issueSummary = String(analysis?.issue_summary || fallback?.issueSummary || "").trim();
-  const resolution = String(analysis?.resolution || fallback?.resolution || "").trim();
+  const resolution = limitSentences(analysis?.resolution || fallback?.resolution || "", 2);
   const rootCause = String(analysis?.root_cause || fallback?.rootCause || "").trim();
   const accountNumber = String(analysis?.account_number || "").replace(/\D/g, "");
   const callerRole = ["rep", "customer", "caller"].includes(String(analysis?.caller_role || "").toLowerCase())

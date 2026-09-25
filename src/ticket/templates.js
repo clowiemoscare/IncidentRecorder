@@ -1,3 +1,4 @@
+import { limitSentences } from "./text.js";
 import { templateKindFor } from "../config/ticket-routing.js";
 
 export const TEMPLATE_DIVIDER = "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";
@@ -167,7 +168,7 @@ function gen2Closing(fields, analysis = {}) {
   const issue = String(analysis?.issueSummary || "").trim();
   const steps = Array.isArray(analysis?.troubleshootingSteps) ? analysis.troubleshootingSteps.map((item) => String(item || "").trim()).filter(Boolean) : [];
   const troubleshooting = steps.length ? `\n${steps.map((step) => `- ${step}`).join("\n")}` : "";
-  const resolution = String(analysis?.resolution || "").trim();
+  const resolution = limitSentences(analysis?.resolution || "", 2);
   const rootCause = value(fields, "rootCause") || String(analysis?.rootCause || "").trim();
   const issueType = value(fields, "issueType");
   const whyDataChanges = value(fields, "whyDataChanges");

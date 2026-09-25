@@ -20,6 +20,39 @@ export function sentence(text) {
   return /[.!?]$/.test(capped) ? capped : `${capped}.`;
 }
 
+
+export function limitSentences(text, maxSentences = 2) {
+  const clean = normalizeTerms(text);
+  if (!clean) return "";
+  const max = Math.max(1, Number(maxSentences) || 1);
+  const parts = [];
+  let start = 0;
+  for (let i = 0; i < clean.length; i += 1) {
+    if (!/[.!?]/.test(clean[i])) continue;
+    let end = i + 1;
+    while (end < clean.length && /[.!?]/.test(clean[end])) end += 1;
+    const remainder = clean.slice(end);
+    const next = remainder.match(/^\s+([A-Z0-9"'])/);
+    if (end === clean.length || next) {
+      parts.push(clean.slice(start, end).trim());
+      start = end;
+      while (start < clean.length && /\s/.test(clean[start])) start += 1;
+      i = start - 1;
+    }
+  }
+  if (start < clean.length) parts.push(clean.slice(start).trim());
+  const limited = (parts.length ? parts : [clean]).filter(Boolean).slice(0, max).join(" " ).trim();
+  if (!limited) return "";
+  const capped = limited[0].toUpperCase() + limited.slice(1);
+  return /[.!?]$/.test(capped) ? capped : `${capped}.`;
+}
+
+export function extractResolution(text) {
+  const source = String(text || "");
+  const match = source.match(/(?:^|\n)Resolution:\s*([\s\S]*?)(?=\n(?:Reason for Escalation|Root Cause|Issue Type|Why are we making changes to the data):|\s*$)/i);
+  return String(match?.[1] || "").trim();
+}
+
 export function uniqueExact(items) {
   const seen = new Set();
   return items.filter((item) => {

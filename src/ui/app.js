@@ -26,7 +26,7 @@ import { DETAIL_FIELDS, emptyFields, extractFields } from "../ticket/extractor.j
 import { generateTicketModel, renderTicketText } from "../ticket/generator.js";
 import { analyzeLocally } from "../ticket/local-analyzer.js";
 import { GEN2_RESET_TEMPLATE, STANDARD_RESET_TEMPLATE, renderDetailedDescription } from "../ticket/templates.js";
-import { cleanNotes, sentence } from "../ticket/text.js";
+import { cleanNotes, extractResolution, sentence } from "../ticket/text.js";
 import { advanceSnapshot, createLiveSession, mergeIncrementalAnalysis, notesSinceSnapshot, snapshotCompatibility, wordCount } from "../ticket/session.js";
 import { $, $$, copyText, downloadText, escapeHtml } from "./dom.js";
 
@@ -841,10 +841,15 @@ export class IncidentRecorderApp {
       short: [$("newTitle").value, "Short description copied."],
       detailed: [$("detailedDescription").value, "Detailed description copied."],
       work: [$("workNotes").value, "Work Notes copied."],
+      resolution: [extractResolution($("workNotes").value), "Resolution copied."],
       ticket: [$("generatedTicket").value, "Generated ticket copied."],
       rough: [$("newRawNotes").value, "Rough Notes copied."]
     };
     const [text, message] = map[target] || ["", "Copied."];
+    if (target === "resolution" && !String(text || "").trim()) {
+      this.showToast("No resolution to copy yet.", "warning");
+      return;
+    }
     try { await copyText(text); this.showToast(message); }
     catch (error) { this.showToast(error.message, "error"); }
   }
@@ -912,11 +917,6 @@ export class IncidentRecorderApp {
     $("applyRoutingTemplateBtn").addEventListener("click", () => this.applyRoutingTemplate());
     $("resetDetailedBtn").addEventListener("click", () => this.resetDetailedTemplate());
     $("resetWorkBtn").addEventListener("click", () => this.resetWorkNotes());
-    $("downloadTicketBtn").addEventListener("click", () => {
-      const name = ($("newTitle").value || "incident").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
-      downloadText($("generatedTicket").value, `${name || "incident"}-ticket.txt`);
-    });
-
     $("startVoiceBtn").addEventListener("click", () => this.startVoice());
     $("pauseVoiceBtn").addEventListener("click", () => this.pauseVoice());
     $("stopVoiceBtn").addEventListener("click", () => this.stopVoice());

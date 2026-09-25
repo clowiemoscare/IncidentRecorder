@@ -1,5 +1,5 @@
-import { sentence, stripIssuePrefix, uniqueExact } from "./text.js";
-import { categoryLabel, shortDescriptionPrefixFor, templateFamilyFor } from "../config/ticket-routing.js";
+import { limitSentences, sentence, stripIssuePrefix, uniqueExact } from "./text.js";
+import { templateFamilyFor } from "../config/ticket-routing.js";
 import { renderDetailedDescription } from "./templates.js";
 
 function cleanIssue(issue) {
@@ -8,37 +8,19 @@ function cleanIssue(issue) {
   return value[0].toUpperCase() + value.slice(1);
 }
 
-function escapeRegex(value) {
-  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+const ACCOUNT_SHORT_DESCRIPTION_CATEGORIES = new Set([
+  "keepstock_onsite",
+  "keepstock_canada_onsite"
+]);
 
-function cleanGen2Issue(issueSummary, categoryId) {
-  let issue = cleanIssue(issueSummary);
-  const fullCategory = categoryLabel(categoryId);
-  const routeLabel = fullCategory.replace(/^Keepstock\s+Gen\s*2\s*-?\s*/i, "").trim();
-  const shortPrefix = shortDescriptionPrefixFor(categoryId).replace(/:\s*$/, "").trim();
-
-  for (const label of [fullCategory, routeLabel, shortPrefix].filter(Boolean)) {
-    issue = issue.replace(new RegExp(`^${escapeRegex(label)}\\s*(?::|-|\\||–|—)?\\s*`, "i"), "").trim();
-  }
-  issue = issue.replace(/^Keepstock\s+Gen\s*2\b\s*(?::|-|\||–|—)?\s*/i, "").trim();
-  for (const label of [routeLabel, shortPrefix].filter(Boolean)) {
-    issue = issue.replace(new RegExp(`^${escapeRegex(label)}\\s*(?::|-|\\||–|—)?\\s*`, "i"), "").trim();
-  }
-  issue = issue.replace(/^[\s:|–—-]+/, "").trim();
-  if (!issue) return "Issue not identified from rough notes";
-  return issue[0].toUpperCase() + issue.slice(1);
-}
-
-export function buildShortDescription({ accountNumber, issueSummary, categoryId = "" }) {
-  if (templateFamilyFor(categoryId) === "gen2") {
-    const issue = cleanGen2Issue(issueSummary, categoryId);
-    const prefix = shortDescriptionPrefixFor(categoryId);
-    return `${prefix}${prefix ? " " : ""}${issue}`.slice(0, 180);
-  }
+export function buildShortDescription({ accountNumber, cribProgramId, issueSummary, categoryId = "" }) {
   const issue = cleanIssue(issueSummary);
-  const account = String(accountNumber || "").trim();
-  return `Acct #: ${account} | issue - ${issue}`.slice(0, 180);
+  if (ACCOUNT_SHORT_DESCRIPTION_CATEGORIES.has(categoryId)) {
+    const account = String(accountNumber || "").trim();
+    return `Acct #: ${account} | ${issue}`.slice(0, 180);
+  }
+  const crib = String(cribProgramId || "").trim();
+  return `Crib #: ${crib} | ${issue}`.slice(0, 180);
 }
 
 function documentedSteps(analysis) {
@@ -51,14 +33,14 @@ function documentedSteps(analysis) {
 
 export function buildStandardWorkNotes({ issueLabel, analysis }) {
   const stepText = documentedSteps(analysis).map((item) => `- ${item}`).join("\n");
-  const resolution = sentence(analysis?.resolution || "");
-  return `Issue:\n${issueLabel || cleanIssue(analysis?.issueSummary)}\n\nTroubleshooting Steps:\n${stepText}\n\nResolution:\n${resolution}\n\nReason for Escalation:\n`;
+  const resolution = limitSentences(analysis?.resolution || "", 2);
+  return `Issue:\n${analysis?.issueSummary ? cleanIssue(analysis.issueSummary) : issueLabel}\n\nTroubleshooting Steps:\n${stepText}\n\nResolution:\n${resolution}\n\nReason for Escalation:\n`;
 }
 
 export function buildGen2WorkNotes({ analysis, fields = {} }) {
   const stepText = documentedSteps(analysis).map((item) => `- ${item}`).join("\n");
   const issue = cleanIssue(analysis?.issueSummary);
-  const resolution = sentence(analysis?.resolution || "");
+  const resolution = limitSentences(analysis?.resolution || "", 2);
   const rootCause = String(fields?.rootCause || analysis?.rootCause || "").trim();
   const issueType = String(fields?.issueType || "").trim() || "(Data Load Failure, Data Maintenance, Knowledge Gap, System, Hardware)";
   const whyDataChanges = String(fields?.whyDataChanges || "").trim();
@@ -84,9 +66,10 @@ export function generateTicketModel({
   overrides = {}
 }) {
   const accountNumber = String(fields?.accountNumber || analysis?.accountNumber || "").trim();
-  const resolvedFields = { ...fields, accountNumber };
+  const cribProgramId = String(fields?.cribProgramId || "").trim();
+  const resolvedFields = { ...fields, accountNumber, cribProgramId };
   const generated = {
-    shortDescription: buildShortDescription({ accountNumber, issueSummary: analysis?.issueSummary, categoryId }),
+    shortDescription: buildShortDescription({ accountNumber, cribProgramId, issueSummary: analysis?.issueSummary, categoryId }),
     detailedDescription: renderDetailedDescription({ categoryId, subcategoryId, fields: resolvedFields, analysis }),
     workNotes: buildWorkNotes({ categoryId, issueLabel: subcategoryLabel, analysis, fields: resolvedFields })
   };
